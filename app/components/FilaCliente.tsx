@@ -79,9 +79,9 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 };
 
   return (
-    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-3 flex flex-col md:flex-row md:items-center gap-4">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-3 flex flex-col md:flex-row md:items-center gap-4 overflow-hidden">
       
-      {/* Información del Cliente y Etiquetas de Estado */}
+      {/* Información del Cliente */}
       <div className="md:w-1/3">
         <h3 className="font-black text-gray-900 uppercase text-sm leading-tight">{nombre}</h3>
         {direccion && <p className="text-xs text-gray-400 font-medium truncate">{direccion}</p>}
@@ -108,20 +108,22 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         </div>
       </div>
 
-      {/* Selectores de Cantidad - Fix: Contraste Máximo para Tablet */}
-      <div className="flex flex-1 items-center justify-around bg-gray-50 rounded-2xl p-2 border border-gray-100">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-black text-gray-400 uppercase">12L</span>
-          <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-10 h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">-</button>
-          <span className="text-2xl font-black text-gray-900 w-10 text-center">{cant12}</span>
-          <button onClick={() => setCant12(cant12 + 1)} className="w-10 h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">+</button>
+      {/* Selectores de Cantidad - FIX: Gaps dinámicos para evitar desborde en móvil */}
+      <div className="flex flex-1 items-center justify-between md:justify-around bg-gray-50 rounded-2xl p-2 border border-gray-100">
+        {/* Bloque 12L */}
+        <div className="flex items-center gap-1.5 md:gap-3">
+          <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">12L</span>
+          <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">-</button>
+          <span className="text-xl md:text-2xl font-black text-gray-900 w-8 md:w-10 text-center">{cant12}</span>
+          <button onClick={() => setCant12(cant12 + 1)} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">+</button>
         </div>
 
-        <div className="flex items-center gap-3 border-l-2 border-gray-200 pl-4">
-          <span className="text-[10px] font-black text-gray-400 uppercase">20L</span>
-          <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-10 h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">-</button>
-          <span className="text-2xl font-black text-gray-900 w-10 text-center">{cant20}</span>
-          <button onClick={() => setCant20(cant20 + 1)} className="w-10 h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">+</button>
+        {/* Bloque 20L - El pl-2 en móvil evita el desborde */}
+        <div className="flex items-center gap-1.5 md:gap-3 border-l-2 border-gray-200 pl-2 md:pl-4">
+          <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">20L</span>
+          <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">-</button>
+          <span className="text-xl md:text-2xl font-black text-gray-900 w-8 md:w-10 text-center">{cant20}</span>
+          <button onClick={() => setCant20(cant20 + 1)} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">+</button>
         </div>
       </div>
 
@@ -141,7 +143,7 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         </button>
       </div>
 
-      {/* Saldo Lateral (Visible en Tablet) */}
+      {/* Saldo Lateral */}
       <div className="hidden md:block text-right w-24">
         <span className="text-[9px] font-bold text-gray-400 block uppercase mb-1">Saldo Total</span>
         <span className={`text-xl font-black leading-none ${deuda > 0 ? 'text-rose-600' : 'text-teal-500'}`}>
