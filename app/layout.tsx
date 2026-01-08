@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="antialiased overflow-x-hidden max-w-full">
         {children}
+        {/* El Navbar decidirá internamente si se dibuja o no */}
         <Navbar />
       </body>
     </html>

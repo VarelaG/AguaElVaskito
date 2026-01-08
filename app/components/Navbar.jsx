@@ -6,6 +6,12 @@ import { usePathname } from 'next/navigation';
 export default function Navbar() {
   const pathname = usePathname();
 
+  // --- AGREGÁ ESTA LÓGICA AQUÍ ---
+  if (pathname === '/login') {
+    return null;
+  }
+  // ------------------------------
+
   const estiloActivo = "text-blue-600";
   const estiloInactivo = "text-gray-500";
 
@@ -25,12 +31,11 @@ export default function Navbar() {
         <ChartBarIcon className="h-6 w-6" />
         <span className="text-[10px] font-bold">RESUMEN</span>
       </Link>
-      <Link href="/config" className={`flex flex-col items-center ${pathname === '/config' ? 'text-blue-600' : 'text-gray-400'}`}>
+      
+      <Link href="/config" className={`flex flex-col items-center ${pathname === '/config' ? estiloActivo : estiloInactivo}`}>
         <Cog8ToothIcon className="h-6 w-6" />
         <span className="text-[10px] font-black">AJUSTES</span>
       </Link>
-
-
     </nav>
   );
 }
