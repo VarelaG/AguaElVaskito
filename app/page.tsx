@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import FilaCliente from './components/FilaCliente';
+import Image from 'next/image';
 import { 
   MagnifyingGlassIcon, 
   BarsArrowDownIcon, 

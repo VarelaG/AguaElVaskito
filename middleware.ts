@@ -47,6 +47,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Protegemos todo menos el login y archivos internos de Next.js
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|login).*)'],
+  // Modificamos el matcher para permitir todos los archivos .png y .jpg
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|login|manifest.json|site.webmanifest|.*\\.(?:png|jpg|jpeg|svg|gif)$).*)'],
 }
