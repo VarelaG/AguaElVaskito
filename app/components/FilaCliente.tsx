@@ -25,58 +25,64 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   }, []);
 
   const registrarEntrega = async (pago: boolean) => {
-  const montoHoy = (cant12 * precios.p12) + (cant20 * precios.p20);
-  
-  if (cant12 === 0 && cant20 === 0) {
-      if (!pago) return alert("Seleccioná bidones para anotar deuda");
-      if (pago && deuda === 0) return alert("El cliente ya está al día");
-  }
-
-  let nuevaDeudaTotal = deuda;
-  let nuevaDeuda12 = deuda12 || 0;
-  let nuevaDeuda20 = deuda20 || 0;
-  let dineroCobrado = 0;
-
-  if (pago) {
+    const montoSeleccionadoHoy = (cant12 * precios.p12) + (cant20 * precios.p20);
+    
+    // Validaciones
     if (cant12 === 0 && cant20 === 0) {
-      dineroCobrado = deuda;
-      nuevaDeudaTotal = 0;
-      nuevaDeuda12 = 0;
-      nuevaDeuda20 = 0;
-    } else {
-      dineroCobrado = montoHoy;
-      nuevaDeudaTotal = Math.max(0, deuda - montoHoy);
-      nuevaDeuda12 = Math.max(0, nuevaDeuda12 - cant12);
-      nuevaDeuda20 = Math.max(0, nuevaDeuda20 - cant20);
+        if (!pago) return alert("Seleccioná bidones para anotar deuda");
+        if (pago && deuda === 0) return alert("El cliente ya está al día");
     }
-  } else {
-    dineroCobrado = 0;
-    nuevaDeudaTotal = deuda + montoHoy;
-    nuevaDeuda12 = nuevaDeuda12 + cant12;
-    nuevaDeuda20 = nuevaDeuda20 + cant20;
-  }
 
-  const { error: errorEntrega } = await supabase.from('entregas').insert([{
-    cliente_id: id,
-    bidon_12l: cant12,
-    bidon_20l: cant20,
-    pago_realizado: pago,
-    monto_deuda: pago ? 0 : montoHoy,
-    monto_pagado: dineroCobrado 
-  }]);
+    let nDeuda12 = deuda12 || 0;
+    let nDeuda20 = deuda20 || 0;
+    let dineroCobrado = 0;
 
-  const { error: errorCliente } = await supabase.from('clientes').update({ 
-    deuda_total: nuevaDeudaTotal,
-    deuda_12l: nuevaDeuda12,
-    deuda_20l: nuevaDeuda20
-  }).eq('id', id);
+    if (pago) {
+      if (cant12 === 0 && cant20 === 0) {
+        // ESCENARIO 1: Pagó TODO lo que debía hasta hoy (sin llevarse nada nuevo)
+        dineroCobrado = (nDeuda12 * precios.p12) + (nDeuda20 * precios.p20);
+        nDeuda12 = 0;
+        nDeuda20 = 0;
+      } else {
+        // ESCENARIO 2: Pagó una cantidad específica de bidones
+        // (Pueden ser los que se lleva hoy o parte de su deuda vieja)
+        dineroCobrado = montoSeleccionadoHoy;
+        nDeuda12 = Math.max(0, nDeuda12 - cant12); // RESTA de la deuda de envases
+        nDeuda20 = Math.max(0, nDeuda20 - cant20); // RESTA de la deuda de envases
+      }
+    } else {
+      // ESCENARIO 3: Se lleva bidones DEBIENDO (suma a su cuenta de envases)
+      dineroCobrado = 0;
+      nDeuda12 += cant12;
+      nDeuda20 += cant20;
+    }
 
-  if (!errorEntrega && !errorCliente) {
-    setCant12(0);
-    setCant20(0);
-    window.location.reload();
-  }
-};
+    // El nuevo total en pesos SIEMPRE se recalcula sobre la cantidad final de envases
+    const nDeudaTotalPesos = (nDeuda12 * precios.p12) + (nDeuda20 * precios.p20);
+
+    // 1. Guardar el movimiento en el historial
+    const { error: errorEntrega } = await supabase.from('entregas').insert([{
+      cliente_id: id,
+      bidon_12l: cant12,
+      bidon_20l: cant20,
+      pago_realizado: pago,
+      monto_deuda: pago ? 0 : montoSeleccionadoHoy,
+      monto_pagado: dineroCobrado 
+    }]);
+
+    // 2. Actualizar la ficha del cliente con las nuevas cantidades y pesos
+    const { error: errorCliente } = await supabase.from('clientes').update({ 
+      deuda_total: nDeudaTotalPesos,
+      deuda_12l: nDeuda12,
+      deuda_20l: nDeuda20
+    }).eq('id', id);
+
+    if (!errorEntrega && !errorCliente) {
+      setCant12(0);
+      setCant20(0);
+      window.location.reload();
+    }
+  };
 
   return (
     <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-3 flex flex-col md:flex-row md:items-center gap-4 overflow-hidden">
@@ -108,9 +114,8 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         </div>
       </div>
 
-      {/* Selectores de Cantidad - FIX: Gaps dinámicos para evitar desborde en móvil */}
+      {/* Selectores de Cantidad */}
       <div className="flex flex-1 items-center justify-between md:justify-around bg-gray-50 rounded-2xl p-2 border border-gray-100">
-        {/* Bloque 12L */}
         <div className="flex items-center gap-1.5 md:gap-3">
           <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">12L</span>
           <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">-</button>
@@ -118,7 +123,6 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
           <button onClick={() => setCant12(cant12 + 1)} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">+</button>
         </div>
 
-        {/* Bloque 20L - El pl-2 en móvil evita el desborde */}
         <div className="flex items-center gap-1.5 md:gap-3 border-l-2 border-gray-200 pl-2 md:pl-4">
           <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">20L</span>
           <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-9 h-9 md:w-10 md:h-10 bg-white rounded-xl border shadow-sm font-black text-blue-600 active:scale-90">-</button>

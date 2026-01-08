@@ -16,12 +16,48 @@ export default function ConfigPage() {
     leerPrecios();
   }, []);
 
-  const actualizarPrecios = async () => {
+const actualizarPrecios = async () => {
     setGuardando(true);
-    const { error } = await supabase.from('configuracion').update(precios).eq('id', 1);
-    setGuardando(false);
-    if (!error) alert("✅ Precios actualizados correctamente");
-    else alert("❌ Error: " + error.message);
+    
+    try {
+      // 1. Actualizar los precios en la tabla de configuración
+      const { error: errorConfig } = await supabase
+        .from('configuracion')
+        .update(precios)
+        .eq('id', 1);
+
+      if (errorConfig) throw errorConfig;
+
+      // 2. Traer a todos los clientes que deben bidones
+      const { data: clientes, error: errorClientes } = await supabase
+        .from('clientes')
+        .select('id, deuda_12l, deuda_20l')
+        .or('deuda_12l.gt.0,deuda_20l.gt.0'); // Solo los que deben algo
+
+      if (errorClientes) throw errorClientes;
+
+      // 3. Recalcular la deuda total de cada uno con los nuevos precios
+      if (clientes && clientes.length > 0) {
+        const promesasUpdate = clientes.map(cliente => {
+          const nuevaDeudaTotal = 
+            (cliente.deuda_12l * precios.precio_12l) + 
+            (cliente.deuda_20l * precios.precio_20l);
+          
+          return supabase
+            .from('clientes')
+            .update({ deuda_total: nuevaDeudaTotal })
+            .eq('id', cliente.id);
+        });
+
+        await Promise.all(promesasUpdate);
+      }
+
+      alert("✅ Precios actualizados y deudas de clientes recalculadas.");
+    } catch (error: any) {
+      alert("❌ Error: " + error.message);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
