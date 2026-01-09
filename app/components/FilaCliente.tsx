@@ -92,25 +92,33 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         <h3 className="font-black text-gray-900 uppercase text-sm leading-tight">{nombre}</h3>
         {direccion && <p className="text-xs text-gray-400 font-medium truncate">{direccion}</p>}
         
-        <div className="mt-2 flex flex-wrap gap-1">
-          {deuda12 > 0 || deuda20 > 0 ? (
-            <>
-              {deuda12 > 0 && (
-                <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black border border-rose-100">
-                  DEBE {deuda12} (12L)
-                </span>
-              )}
-              {deuda20 > 0 && (
-                <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black border border-rose-100">
-                  DEBE {deuda20} (20L)
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-1 rounded-lg font-black border border-teal-100 tracking-wider">
-              ✓ AL DÍA
-            </span>
-          )}
+        {/* Etiquetas y Saldo Móvil */}
+        <div className="mt-2 flex items-center justify-between">
+          <div className="flex flex-wrap gap-1">
+            {deuda12 > 0 || deuda20 > 0 ? (
+              <>
+                {deuda12 > 0 && (
+                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black border border-rose-100">
+                    DEBE {deuda12} (12L)
+                  </span>
+                )}
+                {deuda20 > 0 && (
+                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black border border-rose-100">
+                    DEBE {deuda20} (20L)
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-1 rounded-lg font-black border border-teal-100 tracking-wider">
+                ✓ AL DÍA
+              </span>
+            )}
+          </div>
+
+          {/* Saldo para Celular: Corregido text-lg y sin asterisco */}
+          <span className={`md:hidden text-lg font-black ${deuda > 0 ? 'text-rose-600' : 'text-teal-500'}`}>
+            ${deuda.toLocaleString()}
+          </span>
         </div>
       </div>
 
@@ -147,11 +155,11 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         </button>
       </div>
 
-      {/* Saldo Lateral */}
+      {/* Saldo Lateral (PC) */}
       <div className="hidden md:block text-right w-24">
         <span className="text-[9px] font-bold text-gray-400 block uppercase mb-1">Saldo Total</span>
         <span className={`text-xl font-black leading-none ${deuda > 0 ? 'text-rose-600' : 'text-teal-500'}`}>
-            ${deuda}
+            ${deuda.toLocaleString()}
         </span>
       </div>
     </div>
