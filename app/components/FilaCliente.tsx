@@ -15,19 +15,34 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   const [cant12, setCant12] = useState(0);
   const [cant20, setCant20] = useState(0);
   const [precios, setPrecios] = useState({ p12: 0, p20: 0 });
+  
+  // Estados nuevos para el historial
+  const [verHistorial, setVerHistorial] = useState(false);
+  const [historial, setHistorial] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchPrecios = async () => {
-      const { data } = await supabase.from('configuracion').select('*').single();
-      if (data) setPrecios({ p12: data.precio_12l, p20: data.precio_20l });
+    const cargarDatos = async () => {
+      // 1. Traer Precios Actuales
+      const { data: preciosData } = await supabase.from('configuracion').select('*').single();
+      if (preciosData) setPrecios({ p12: preciosData.precio_12l, p20: preciosData.precio_20l });
+
+      // 2. Traer los últimos 3 movimientos de este cliente específico
+      const { data: historialData } = await supabase
+        .from('entregas')
+        .select('*')
+        .eq('cliente_id', id)
+        .order('fecha', { ascending: false })
+        .limit(3);
+      
+      if (historialData) setHistorial(historialData);
     };
-    fetchPrecios();
-  }, []);
+
+    cargarDatos();
+  }, [id]);
 
   const registrarEntrega = async (pago: boolean) => {
     const montoSeleccionadoHoy = (cant12 * precios.p12) + (cant20 * precios.p20);
     
-    // Validaciones
     if (cant12 === 0 && cant20 === 0) {
         if (!pago) return alert("Seleccioná bidones para anotar deuda");
         if (pago && deuda === 0) return alert("El cliente ya está al día");
@@ -39,28 +54,22 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
     if (pago) {
       if (cant12 === 0 && cant20 === 0) {
-        // ESCENARIO 1: Pagó TODO lo que debía hasta hoy (sin llevarse nada nuevo)
         dineroCobrado = (nDeuda12 * precios.p12) + (nDeuda20 * precios.p20);
         nDeuda12 = 0;
         nDeuda20 = 0;
       } else {
-        // ESCENARIO 2: Pagó una cantidad específica de bidones
-        // (Pueden ser los que se lleva hoy o parte de su deuda vieja)
         dineroCobrado = montoSeleccionadoHoy;
-        nDeuda12 = Math.max(0, nDeuda12 - cant12); // RESTA de la deuda de envases
-        nDeuda20 = Math.max(0, nDeuda20 - cant20); // RESTA de la deuda de envases
+        nDeuda12 = Math.max(0, nDeuda12 - cant12);
+        nDeuda20 = Math.max(0, nDeuda20 - cant20);
       }
     } else {
-      // ESCENARIO 3: Se lleva bidones DEBIENDO (suma a su cuenta de envases)
       dineroCobrado = 0;
       nDeuda12 += cant12;
       nDeuda20 += cant20;
     }
 
-    // El nuevo total en pesos SIEMPRE se recalcula sobre la cantidad final de envases
     const nDeudaTotalPesos = (nDeuda12 * precios.p12) + (nDeuda20 * precios.p20);
 
-    // 1. Guardar el movimiento en el historial
     const { error: errorEntrega } = await supabase.from('entregas').insert([{
       cliente_id: id,
       bidon_12l: cant12,
@@ -70,7 +79,6 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
       monto_pagado: dineroCobrado 
     }]);
 
-    // 2. Actualizar la ficha del cliente con las nuevas cantidades y pesos
     const { error: errorCliente } = await supabase.from('clientes').update({ 
       deuda_total: nDeudaTotalPesos,
       deuda_12l: nDeuda12,
@@ -87,10 +95,17 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   return (
     <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 mb-3 flex flex-col md:flex-row md:items-center gap-4 overflow-hidden">
       
-      {/* Información del Cliente */}
+      {/* Información del Cliente - Ahora con clic para ver historial */}
       <div className="md:w-1/3">
-        <h3 className="font-black text-gray-900 uppercase text-sm leading-tight">{nombre}</h3>
-        {direccion && <p className="text-xs text-gray-400 font-medium truncate">{direccion}</p>}
+        <div 
+          onClick={() => setVerHistorial(!verHistorial)} 
+          className="cursor-pointer active:opacity-50 transition-all group"
+        >
+          <h3 className="font-black text-slate-600 uppercase text-sm leading-tight group-hover:text-blue-600">
+            {nombre}
+          </h3>
+          {direccion && <p className="text-xs text-slate-600 font-medium truncate">{direccion}</p>}
+        </div>
         
         {/* Etiquetas y Saldo Móvil */}
         <div className="mt-2 flex items-center justify-between">
@@ -98,27 +113,44 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
             {deuda12 > 0 || deuda20 > 0 ? (
               <>
                 {deuda12 > 0 && (
-                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black border border-rose-100">
+                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg font-black border border-rose-100">
                     DEBE {deuda12} (12L)
                   </span>
                 )}
                 {deuda20 > 0 && (
-                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-1 rounded-lg font-black border border-rose-100">
+                  <span className="text-[10px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg font-black border border-rose-100">
                     DEBE {deuda20} (20L)
                   </span>
                 )}
               </>
             ) : (
-              <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-1 rounded-lg font-black border border-teal-100 tracking-wider">
+              <span className="text-[10px] bg-teal-50 text-teal-600 px-2 py-0.5 rounded-lg font-black border border-teal-100 tracking-wider">
                 ✓ AL DÍA
               </span>
             )}
           </div>
 
-          {/* Saldo para Celular: Corregido text-lg y sin asterisco */}
           <span className={`md:hidden text-lg font-black ${deuda > 0 ? 'text-rose-600' : 'text-teal-500'}`}>
             ${deuda.toLocaleString()}
           </span>
+        </div>
+
+        {/* Panel Desplegable del Historial */}
+        <div className={`overflow-hidden transition-all duration-300 ${verHistorial ? 'max-h-40 mt-4' : 'max-h-0'}`}>
+          <div className="bg-gray-50 rounded-2xl p-3 space-y-1.5 border border-gray-100">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Últimos movimientos</p>
+            {historial.length > 0 ? (
+              historial.map((h, i) => (
+                <div key={i} className="flex justify-between items-center text-[10px] font-bold">
+                  <span className="text-gray-400">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
+                  <span className={h.pago_realizado ? 'text-teal-600' : 'text-rose-500'}>{h.pago_realizado ? 'PAGÓ' : 'DEBE'}</span>
+                  <span className="text-gray-700">${(h.monto_pagado || h.monto_deuda).toLocaleString()}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-[10px] text-gray-400 italic text-center">Sin movimientos registrados</p>
+            )}
+          </div>
         </div>
       </div>
 
