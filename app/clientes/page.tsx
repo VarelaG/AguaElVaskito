@@ -1,16 +1,23 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [mostrarForm, setMostrarForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  
+  const [busqueda, setBusqueda] = useState('');
   const [nombre, setNombre] = useState('');
   const [direccion, setDireccion] = useState('');
+  const [envases20, setEnvases20] = useState(0); // Nueva funcionalidad
   const [cargando, setCargando] = useState(true);
+
+  // Lógica corregida: Se eliminaron las llaves {} para que el filtro funcione
+const clientesFiltrados = clientes.filter((c) =>
+  c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+  (c.direccion ?? "").toLowerCase().includes(busqueda.toLowerCase())
+);
 
   const fetchClientes = async () => {
     setCargando(true);
@@ -22,61 +29,63 @@ export default function ClientesPage() {
   useEffect(() => { fetchClientes(); }, []);
 
   const guardarCliente = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  const nombreLimpio = nombre.trim();
-  const direccionLimpia = direccion.trim();
+    e.preventDefault();
+    
+    const nombreLimpio = nombre.trim();
+    const direccionLimpia = direccion.trim();
 
-  // 1. Verificación de Duplicados Robusta
-  // Traemos todos los que coincidan (limitamos a 2 por eficiencia)
-  const { data: encontrados, error: errorCheck } = await supabase
-    .from('clientes')
-    .select('id, nombre')
-    .ilike('nombre', nombreLimpio)
-    .limit(2);
+    // 1. Verificación de Duplicados Robusta (Se mantiene exactamente tu lógica)
+    const { data: encontrados, error: errorCheck } = await supabase
+      .from('clientes')
+      .select('id, nombre')
+      .ilike('nombre', nombreLimpio)
+      .limit(2);
 
-  if (errorCheck) {
-    console.error("Error en la consulta de duplicados:", errorCheck.message);
-    return alert("Error de conexión con la base de datos.");
-  }
+    if (errorCheck) {
+      console.error("Error en la consulta de duplicados:", errorCheck.message);
+      return alert("Error de conexión con la base de datos.");
+    }
 
-  // Buscamos si hay algún duplicado que NO sea el que estamos editando
-  const duplicado = encontrados?.find(c => c.id !== editandoId);
+    const duplicado = encontrados?.find(c => c.id !== editandoId);
 
-  if (duplicado) {
-    return alert(`⚠️ ¡Atención! Ya existe un cliente registrado como "${duplicado.nombre}".`);
-  }
+    if (duplicado) {
+      return alert(`⚠️ ¡Atención! Ya existe un cliente registrado como "${duplicado.nombre}".`);
+    }
 
-  // 2. Lógica de Persistencia
-  const payload = { 
-    nombre: nombreLimpio, 
-    direccion: direccionLimpia || "" 
+    // 2. Lógica de Persistencia (Se agregó envases_20l al payload)
+    const payload = { 
+      nombre: nombreLimpio, 
+      direccion: direccionLimpia || "",
+      envases_20l: envases20 // Nueva funcionalidad
+    };
+
+    if (editandoId) {
+      const { error } = await supabase.from('clientes').update(payload).eq('id', editandoId);
+      if (error) return alert("Error al actualizar: " + error.message);
+      setEditandoId(null);
+    } else {
+      const { error } = await supabase.from('clientes').insert([{ 
+        ...payload, 
+        deuda_total: 0, 
+        deuda_12l: 0, 
+        deuda_20l: 0,
+        envases_12l: 0 
+      }]);
+      if (error) return alert("Error al guardar: " + error.message);
+    }
+
+    setNombre(''); 
+    setDireccion(''); 
+    setEnvases20(0); 
+    setMostrarForm(false);
+    fetchClientes();
   };
-
-  if (editandoId) {
-    const { error } = await supabase.from('clientes').update(payload).eq('id', editandoId);
-    if (error) return alert("Error al actualizar: " + error.message);
-    setEditandoId(null);
-  } else {
-    const { error } = await supabase.from('clientes').insert([{ 
-      ...payload, 
-      deuda_total: 0, 
-      deuda_12l: 0, 
-      deuda_20l: 0 
-    }]);
-    if (error) return alert("Error al guardar: " + error.message);
-  }
-
-  setNombre(''); 
-  setDireccion(''); 
-  setMostrarForm(false);
-  fetchClientes();
-};
 
   const prepararEdicion = (cliente: any) => {
     setEditandoId(cliente.id);
     setNombre(cliente.nombre);
     setDireccion(cliente.direccion);
+    setEnvases20(cliente.envases_20l || 0); // Cargamos el stock actual
     setMostrarForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -91,19 +100,36 @@ export default function ClientesPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 p-6 pb-32">
-      <header className="mb-8 mt-4 flex justify-between items-center">
-        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Gestión de Clientes</h1>
-        <button onClick={() => { setMostrarForm(!mostrarForm); setEditandoId(null); setNombre(''); setDireccion(''); }} 
-                className={`p-3 rounded-2xl shadow-lg transition-all ${mostrarForm ? 'bg-rose-500 text-white rotate-45' : 'bg-blue-600 text-white'}`}>
+      <header className="mb-8 mt-4 flex justify-between items-center text-slate-800">
+        <h1 className="text-3xl font-black tracking-tight">Gestión de Clientes</h1>
+        <button onClick={() => { 
+            setMostrarForm(!mostrarForm); 
+            setEditandoId(null); 
+            setNombre(''); 
+            setDireccion(''); 
+            setEnvases20(0); 
+          }} 
+          className={`p-3 rounded-2xl shadow-lg transition-all ${mostrarForm ? 'bg-rose-500 text-white rotate-45' : 'bg-blue-600 text-white'}`}>
           <PlusIcon className="h-6 w-6" />
         </button>
       </header>
 
+      <div className="relative mb-8">
+                <MagnifyingGlassIcon className="h-5 w-5 absolute left-4 top-3 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Buscar por nombre" 
+                  className="text-gray-700 w-full pl-12 pr-4 py-3 border-none rounded-2xl bg-gray-100 focus:ring-2 focus:ring-blue-500 transition-all text-sm outline-none font-medium"
+                  onChange={(e) => setBusqueda(e.target.value)}
+                />
+              </div>
+      
       {mostrarForm && (
         <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border border-blue-50 mb-10">
-          <h2 className="font-bold text-gray-800 mb-6">{editandoId ? 'Modificar Cliente' : 'Nuevo Cliente'}</h2>
+          <h2 className="font-bold text-gray-800 mb-6 uppercase text-xs tracking-widest">
+            {editandoId ? 'Modificar Cliente' : 'Nuevo Cliente'}
+          </h2>
           <form onSubmit={guardarCliente} className="space-y-4">
-            {/* FIX: Se agregó text-gray-900 para que las letras se vean claras */}
             <input 
               required 
               type="text" 
@@ -119,6 +145,21 @@ export default function ClientesPage() {
               className="w-full p-4 bg-gray-50 rounded-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400" 
               placeholder="Dirección (Opcional)" 
             />
+            
+            {/* INPUT DE STOCK FÍSICO (NUEVO) */}
+            <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+              <label className="text-[10px] font-black text-amber-700 uppercase mb-2 block tracking-widest">
+                Bidones en posesión hoy
+              </label>
+              <input 
+                type="number" 
+                value={envases20} 
+                onChange={(e) => setEnvases20(Number(e.target.value))}
+                className="w-full bg-transparent text-2xl font-black text-amber-600 outline-none" 
+                placeholder="0" 
+              />
+            </div>
+
             <button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs shadow-lg shadow-blue-100">
               {editandoId ? 'Actualizar Datos' : 'Registrar Cliente'}
             </button>
@@ -128,13 +169,19 @@ export default function ClientesPage() {
 
       <section className="space-y-4">
         {cargando ? (
-          <p className="text-center text-gray-400 py-10">Actualizando lista...</p>
+          <p className="text-center text-gray-400 py-10 font-bold uppercase text-[10px]">Actualizando lista...</p>
         ) : (
-          clientes.map((cliente) => (
+          clientesFiltrados.map((cliente) => (
             <div key={cliente.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 flex items-center justify-between transition-all">
               <div className="w-2/3">
                 <h4 className="font-black text-gray-800 leading-tight uppercase text-sm">{cliente.nombre}</h4>
-                <p className="text-xs text-gray-400 truncate">{cliente.direccion || 'Sin dirección'}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-[10px] text-gray-400 truncate">{cliente.direccion || 'Sin dirección'}</p>
+                  {/* Badge de stock para visualización rápida */}
+                  <span className="text-[9px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-lg font-black uppercase">
+                    {cliente.envases_20l || 0} U.
+                  </span>
+                </div>
               </div>
               
               <div className="flex gap-2">

@@ -77,7 +77,7 @@ export default function Home() {
           <MagnifyingGlassIcon className="h-5 w-5 absolute left-4 top-3 text-gray-400" />
           <input 
             type="text" 
-            placeholder="Buscar por nombre o calle..." 
+            placeholder="Buscar por nombre" 
             className="text-gray-700 w-full pl-12 pr-4 py-3 border-none rounded-2xl bg-gray-100 focus:ring-2 focus:ring-blue-500 transition-all text-sm outline-none font-medium"
             onChange={(e) => setBusqueda(e.target.value)}
           />
@@ -127,6 +127,8 @@ export default function Home() {
               deuda={cliente.deuda_total}
               deuda12={cliente.deuda_12l} 
               deuda20={cliente.deuda_20l}
+              envases_12l={cliente.envases_12l}
+              envases_20l={cliente.envases_20l}
             />
           ))
         )}
