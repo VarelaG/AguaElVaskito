@@ -26,7 +26,7 @@ export default function ResumenPage() {
       const { data: clientesData } = await supabase.from('clientes').select('deuda_total, envases_12l, envases_20l');
       const deudaTotal = clientesData?.reduce((acc, c) => acc + Number(c.deuda_total), 0) || 0;
       const envasesTotal = clientesData?.reduce((acc, c) => acc + (c.envases_12l || 0) + (c.envases_20l || 0), 0) || 0;
-      
+
       setTotalDeudaCalle(deudaTotal);
       setTotalEnvasesCalle(envasesTotal);
 
@@ -42,9 +42,14 @@ export default function ResumenPage() {
         .from('entregas')
         .select(`monto_deuda, monto_pagado, pago_realizado, fecha, clientes ( nombre )`)
         .order('fecha', { ascending: false })
-        .limit(5);
+        .limit(20);
 
-      if (entregasData) setActividad(entregasData as any);
+      if (entregasData) {
+        const filtradas = entregasData
+          .filter((e: any) => e.monto_pagado > 0 || e.monto_deuda > 0)
+          .slice(0, 5);
+        setActividad(filtradas as any);
+      }
       setCargando(false);
     };
 

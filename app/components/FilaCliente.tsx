@@ -17,7 +17,7 @@ interface FilaProps {
 export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deuda20, envases_12l = 0, envases_20l = 0 }: FilaProps) {
   const [cant12, setCant12] = useState(0);
   const [cant20, setCant20] = useState(0);
-  const [vacios, setVacios] = useState(0); 
+  const [vacios, setVacios] = useState(0);
   const [precios, setPrecios] = useState({ p12: 0, p20: 0 });
   const [verHistorial, setVerHistorial] = useState(false);
   const [historial, setHistorial] = useState<any[]>([]);
@@ -55,9 +55,9 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
       // Si fue "PAGÓ" o "COBRÓ_DEUDA", y el monto_deuda es 0, significa que bajó deuda o pagó en el acto
       // Para simplificar: al borrar una cobranza, la deuda vuelve a aparecer
       if (movimiento.monto_pagado > 0 && (movimiento.bidon_12l > 0 || movimiento.bidon_20l > 0)) {
-         // Si el contador tenía números, asumimos que se usaron para bajar la deuda
-         rDeuda12 += movimiento.bidon_12l;
-         rDeuda20 += movimiento.bidon_20l;
+        // Si el contador tenía números, asumimos que se usaron para bajar la deuda
+        rDeuda12 += movimiento.bidon_12l;
+        rDeuda20 += movimiento.bidon_20l;
       }
     }
 
@@ -91,19 +91,22 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
       // ESCENARIO A: Entrega y paga hoy. Sube stock, la deuda vieja no se toca.
       dineroCobrado = montoHoy;
       nFisicoTotal += (cant12 + cant20) - vacios;
-    } 
+    }
     else if (tipo === 'DEBE') {
       // ESCENARIO C: Entrega y no paga. Sube stock y sube deuda.
       nDeuda12 += cant12;
       nDeuda20 += cant20;
       dineroCobrado = 0;
       nFisicoTotal += (cant12 + cant20) - vacios;
-    } 
+    }
     else if (tipo === 'COBRÓ_DEUDA') {
       // ESCENARIO B: No entrega nada (o ya entregó), solo cobra deuda vieja.
       // Baja deuda, STOCK NO SUBE.
+      if (cant12 > deuda12) return alert(`No podés cobrar más de lo que debe (Deuda 12L: ${deuda12})`);
+      if (cant20 > deuda20) return alert(`No podés cobrar más de lo que debe (Deuda 20L: ${deuda20})`);
+
       if (cant12 === 0 && cant20 === 0) {
-        dineroCobrado = deuda; 
+        dineroCobrado = deuda;
         nDeuda12 = 0; nDeuda20 = 0;
       } else {
         dineroCobrado = montoHoy;
@@ -122,10 +125,10 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
       devueltos_20l: vacios,
       pago_realizado: tipo !== 'DEBE',
       monto_deuda: tipo === 'DEBE' ? montoHoy : 0,
-      monto_pagado: dineroCobrado 
+      monto_pagado: dineroCobrado
     }]);
 
-    await supabase.from('clientes').update({ 
+    await supabase.from('clientes').update({
       deuda_total: nDeudaTotalPesos,
       deuda_12l: nDeuda12,
       deuda_20l: nDeuda20,
@@ -137,15 +140,15 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
   return (
     <div className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-slate-100 mb-4 flex flex-col md:grid md:grid-cols-12 md:items-center gap-4 overflow-hidden transition-all">
-      
+
       {/* 1. INFO Y ETIQUETAS */}
-      <div className="md:col-span-3">
+      <div className="md:col-span-3 text-center md:text-left">
         <div onClick={() => setVerHistorial(!verHistorial)} className="cursor-pointer active:opacity-50 group">
           <h3 className="font-black text-slate-800 uppercase text-sm leading-tight group-hover:text-blue-600 truncate">{nombre}</h3>
           <p className="text-[10px] text-slate-500 font-medium truncate mb-2">{direccion || 'Sin dirección'}</p>
         </div>
-        
-        <div className="flex flex-wrap gap-1.5 items-center">
+
+        <div className="flex flex-wrap gap-1.5 items-center justify-center md:justify-start">
           {deuda12 > 0 && <span className="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg font-black border border-rose-100 uppercase">Debe {deuda12} (12L)</span>}
           {deuda20 > 0 && <span className="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg font-black border border-rose-100 uppercase">Debe {deuda20} (20L)</span>}
           {deuda === 0 && (
@@ -186,7 +189,13 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         <div className="flex items-center gap-3">
           <button onClick={() => setVacios(Math.max(0, vacios - 1))} className="w-7 h-7 bg-white rounded-lg shadow-sm text-amber-600 font-bold active:scale-90">-</button>
           <span className="text-sm font-black text-slate-700 w-5 text-center">{vacios}</span>
-          <button onClick={() => setVacios(vacios + 1)} className="w-7 h-7 bg-white rounded-lg shadow-sm text-amber-600 font-bold active:scale-90">+</button>
+          <button
+            disabled={vacios >= totalEnMano}
+            onClick={() => setVacios(vacios + 1)}
+            className={`w-7 h-7 bg-white rounded-lg shadow-sm text-amber-600 font-bold active:scale-90 ${vacios >= totalEnMano ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            +
+          </button>
         </div>
       </div>
 
@@ -197,8 +206,8 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
           <button onClick={() => registrarEntrega('DEBE')} className="flex-1 py-3 bg-white text-rose-500 border border-rose-200 font-black rounded-xl text-[9px] uppercase active:scale-95 transition-all">DEBE</button>
         </div>
         {(deuda12 > 0 || deuda20 > 0) && (
-          <button 
-            onClick={() => registrarEntrega('COBRÓ_DEUDA')} 
+          <button
+            onClick={() => registrarEntrega('COBRÓ_DEUDA')}
             className="w-full py-2.5 bg-blue-50 text-blue-600 font-black rounded-xl text-[8px] uppercase border border-blue-100 active:bg-blue-100"
           >
             Cobrar Deuda Vieja
@@ -217,9 +226,9 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center border-b border-slate-200 pb-2 mb-2">Últimos 5 movimientos</p>
           {historial.length > 0 ? historial.map((h, i) => (
             <div key={i} className="flex justify-between text-[10px] font-bold items-center">
-              <span className="text-slate-400 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit'})}</span>
+              <span className="text-slate-400 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
               <span className="text-slate-50 flex-1 text-center">
-                Entregó: {h.bidon_12l > 0 ? `${h.bidon_12l} (12L) ` : ''}{h.bidon_20l > 0 ? `${h.bidon_20l} (20L)` : ''} 
+                Entregó: {h.bidon_12l > 0 ? `${h.bidon_12l} (12L) ` : ''}{h.bidon_20l > 0 ? `${h.bidon_20l} (20L)` : ''}
                 {h.devueltos_20l > 0 ? ` | Volvieron: ${h.devueltos_20l}` : ''}
               </span>
               <div className="w-24 text-right flex items-center justify-end gap-2">
