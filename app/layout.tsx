@@ -1,5 +1,6 @@
 import Navbar from './components/Navbar';
 import './globals.css';
+import { Providers } from './providers';
 
 export const metadata = {
   title: 'El Vaskito',
@@ -14,11 +15,13 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body className="antialiased overflow-x-hidden max-w-full">
-        {children}
-        {/* El Navbar decidirá internamente si se dibuja o no */}
-        <Navbar />
+    <html lang="es" suppressHydrationWarning>
+      <body className="antialiased overflow-x-hidden max-w-full bg-[var(--background)] text-[var(--foreground)]">
+        <Providers>
+          {children}
+          {/* El Navbar decidirá internamente si se dibuja o no */}
+          <Navbar />
+        </Providers>
       </body>
     </html>
   );

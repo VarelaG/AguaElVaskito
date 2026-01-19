@@ -139,60 +139,60 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   };
 
   return (
-    <div className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-slate-100 mb-4 flex flex-col md:grid md:grid-cols-12 md:items-center gap-4 overflow-hidden transition-all">
+    <div className="bg-white dark:bg-neutral-900 p-5 rounded-[2.5rem] shadow-sm border border-neutral-100 dark:border-neutral-800 mb-4 flex flex-col md:grid md:grid-cols-12 md:items-center gap-4 overflow-hidden transition-all">
 
       {/* 1. INFO Y ETIQUETAS */}
       <div className="md:col-span-3 text-center md:text-left">
         <div onClick={() => setVerHistorial(!verHistorial)} className="cursor-pointer active:opacity-50 group">
-          <h3 className="font-black text-slate-800 uppercase text-sm leading-tight group-hover:text-blue-600 truncate">{nombre}</h3>
-          <p className="text-[10px] text-slate-500 font-medium truncate mb-2">{direccion || 'Sin dirección'}</p>
+          <h3 className="font-black text-neutral-800 dark:text-neutral-100 uppercase text-sm leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{nombre}</h3>
+          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium truncate mb-2">{direccion || 'Sin dirección'}</p>
         </div>
 
         <div className="flex flex-wrap gap-1.5 items-center justify-center md:justify-start">
-          {deuda12 > 0 && <span className="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg font-black border border-rose-100 uppercase">Debe {deuda12} (12L)</span>}
-          {deuda20 > 0 && <span className="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg font-black border border-rose-100 uppercase">Debe {deuda20} (20L)</span>}
+          {deuda12 > 0 && <span className="text-[9px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-lg font-black border border-rose-100 dark:border-rose-800 uppercase">Debe {deuda12} (12L)</span>}
+          {deuda20 > 0 && <span className="text-[9px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-lg font-black border border-rose-100 dark:border-rose-800 uppercase">Debe {deuda20} (20L)</span>}
           {deuda === 0 && (
-            <span className="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-lg font-black border border-emerald-100 uppercase tracking-wider">
+            <span className="text-[9px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-lg font-black border border-emerald-100 dark:border-emerald-800 uppercase tracking-wider">
               ✓ Al día
             </span>
           )}
-          <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg font-black border border-amber-100 uppercase">
+          <span className="text-[9px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-lg font-black border border-amber-100 dark:border-amber-800 uppercase">
             En Mano: {totalEnMano}
           </span>
         </div>
       </div>
 
       {/* 2. SELECTORES DE ENTREGA */}
-      <div className="md:col-span-4 flex items-center justify-between bg-slate-50 p-2 md:p-3 rounded-2xl border border-slate-100 h-14">
+      <div className="md:col-span-4 flex items-center justify-between bg-neutral-50 dark:bg-neutral-800 p-2 md:p-3 rounded-2xl border border-neutral-100 dark:border-neutral-700 h-14">
         <div className="flex flex-col items-center flex-1">
-          <span className="text-[7px] md:text-[8px] font-black text-blue-400 uppercase mb-0.5">12L</span>
+          <span className="text-[7px] md:text-[8px] font-black text-blue-400 dark:text-blue-300 uppercase mb-0.5">12L</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-7 h-7 bg-white rounded-lg shadow-sm text-blue-600 font-bold active:scale-90">-</button>
-            <span className="text-xs font-black text-slate-700 w-5 text-center">{cant12}</span>
-            <button onClick={() => setCant12(cant12 + 1)} className="w-7 h-7 bg-white rounded-lg shadow-sm text-blue-600 font-bold active:scale-90">+</button>
+            <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">-</button>
+            <span className="text-xs font-black text-neutral-700 dark:text-white w-5 text-center">{cant12}</span>
+            <button onClick={() => setCant12(cant12 + 1)} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">+</button>
           </div>
         </div>
-        <div className="w-[1px] h-6 bg-slate-200 mx-1"></div>
+        <div className="w-[1px] h-6 bg-neutral-200 dark:bg-neutral-600 mx-1"></div>
         <div className="flex flex-col items-center flex-1">
-          <span className="text-[7px] md:text-[8px] font-black text-blue-400 uppercase mb-0.5">20L</span>
+          <span className="text-[7px] md:text-[8px] font-black text-blue-400 dark:text-blue-300 uppercase mb-0.5">20L</span>
           <div className="flex items-center gap-2">
-            <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-7 h-7 bg-white rounded-lg shadow-sm text-blue-600 font-bold active:scale-90">-</button>
-            <span className="text-xs font-black text-slate-700 w-5 text-center">{cant20}</span>
-            <button onClick={() => setCant20(cant20 + 1)} className="w-7 h-7 bg-white rounded-lg shadow-sm text-blue-600 font-bold active:scale-90">+</button>
+            <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">-</button>
+            <span className="text-xs font-black text-neutral-700 dark:text-white w-5 text-center">{cant20}</span>
+            <button onClick={() => setCant20(cant20 + 1)} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">+</button>
           </div>
         </div>
       </div>
 
       {/* 3. SELECTOR DE VACÍOS */}
-      <div className="md:col-span-2 flex flex-col items-center bg-amber-50/30 p-2 rounded-2xl border border-amber-100 h-14">
-        <span className="text-[8px] font-black text-amber-500 uppercase mb-1">Retiro Vacíos</span>
+      <div className="md:col-span-2 flex flex-col items-center bg-amber-50/30 dark:bg-amber-900/20 p-2 rounded-2xl border border-amber-100 dark:border-amber-800/50 h-14">
+        <span className="text-[8px] font-black text-amber-500 dark:text-amber-400 uppercase mb-1">Retiro Vacíos</span>
         <div className="flex items-center gap-3">
-          <button onClick={() => setVacios(Math.max(0, vacios - 1))} className="w-7 h-7 bg-white rounded-lg shadow-sm text-amber-600 font-bold active:scale-90">-</button>
-          <span className="text-sm font-black text-slate-700 w-5 text-center">{vacios}</span>
+          <button onClick={() => setVacios(Math.max(0, vacios - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-amber-600 dark:text-amber-400 font-bold active:scale-90">-</button>
+          <span className="text-sm font-black text-neutral-700 dark:text-white w-5 text-center">{vacios}</span>
           <button
             disabled={vacios >= totalEnMano}
             onClick={() => setVacios(vacios + 1)}
-            className={`w-7 h-7 bg-white rounded-lg shadow-sm text-amber-600 font-bold active:scale-90 ${vacios >= totalEnMano ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-amber-600 dark:text-amber-400 font-bold active:scale-90 ${vacios >= totalEnMano ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             +
           </button>
@@ -202,13 +202,13 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
       {/* 4. ACCIONES */}
       <div className="md:col-span-2 flex flex-col gap-1.5">
         <div className="flex gap-1.5">
-          <button onClick={() => registrarEntrega('PAGÓ')} className="flex-1 py-3 bg-emerald-500 text-white font-black rounded-xl text-[9px] uppercase shadow-md active:scale-95 transition-all">PAGÓ</button>
-          <button onClick={() => registrarEntrega('DEBE')} className="flex-1 py-3 bg-white text-rose-500 border border-rose-200 font-black rounded-xl text-[9px] uppercase active:scale-95 transition-all">DEBE</button>
+          <button onClick={() => registrarEntrega('PAGÓ')} className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-[9px] uppercase shadow-md active:scale-95 transition-all">PAGÓ</button>
+          <button onClick={() => registrarEntrega('DEBE')} className="flex-1 py-3 bg-white dark:bg-neutral-800 text-rose-500 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-black rounded-xl text-[9px] uppercase active:scale-95 transition-all">DEBE</button>
         </div>
         {(deuda12 > 0 || deuda20 > 0) && (
           <button
             onClick={() => registrarEntrega('COBRÓ_DEUDA')}
-            className="w-full py-2.5 bg-blue-50 text-blue-600 font-black rounded-xl text-[8px] uppercase border border-blue-100 active:bg-blue-100"
+            className="w-full py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 font-black rounded-xl text-[8px] uppercase border border-blue-100 dark:border-blue-800 active:bg-blue-100 dark:active:bg-blue-800"
           >
             Cobrar Deuda Vieja
           </button>
@@ -217,32 +217,32 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
       {/* 5. SALDO PC */}
       <div className="hidden md:block md:col-span-1 text-right">
-        <span className={`text-sm font-black ${deuda > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>${deuda.toLocaleString()}</span>
+        <span className={`text-sm font-black ${deuda > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>${deuda.toLocaleString()}</span>
       </div>
 
       {/* HISTORIAL DESPLEGABLE */}
       {verHistorial && (
-        <div className="md:col-span-12 bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 mt-[-1rem] animate-in fade-in slide-in-from-top-2 duration-300">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center border-b border-slate-200 pb-2 mb-2">Últimos 5 movimientos</p>
+        <div className="md:col-span-12 bg-neutral-50 dark:bg-neutral-800 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-700 space-y-2 mt-[-1rem] animate-in fade-in slide-in-from-top-2 duration-300">
+          <p className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest text-center border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">Últimos 5 movimientos</p>
           {historial.length > 0 ? historial.map((h, i) => (
             <div key={i} className="flex justify-between text-[10px] font-bold items-center">
-              <span className="text-slate-400 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
-              <span className="text-slate-50 flex-1 text-center">
+              <span className="text-neutral-400 dark:text-neutral-500 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
+              <span className="text-neutral-50 flex-1 text-center text-neutral-600 dark:text-neutral-300">
                 Entregó: {h.bidon_12l > 0 ? `${h.bidon_12l} (12L) ` : ''}{h.bidon_20l > 0 ? `${h.bidon_20l} (20L)` : ''}
                 {h.devueltos_20l > 0 ? ` | Volvieron: ${h.devueltos_20l}` : ''}
               </span>
               <div className="w-24 text-right flex items-center justify-end gap-2">
-                <span className={`text-[10px] ${h.pago_realizado ? 'text-emerald-600' : 'text-rose-500'}`}>
+                <span className={`text-[10px] ${h.pago_realizado ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                   ${(h.monto_pagado || h.monto_deuda).toLocaleString()}
                 </span>
                 {i === 0 && (
-                  <button onClick={() => deshacerEntrega(h)} className="p-1 bg-rose-100 text-rose-600 rounded-md hover:bg-rose-200">
+                  <button onClick={() => deshacerEntrega(h)} className="p-1 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-md hover:bg-rose-200 dark:hover:bg-rose-800">
                     <ArrowUturnLeftIcon className="h-3 w-3" />
                   </button>
                 )}
               </div>
             </div>
-          )) : <p className="text-center text-[10px] text-slate-400">Sin historial registrado</p>}
+          )) : <p className="text-center text-[10px] text-neutral-400">Sin historial registrado</p>}
         </div>
       )}
     </div>
