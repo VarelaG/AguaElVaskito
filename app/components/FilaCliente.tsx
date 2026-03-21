@@ -23,9 +23,10 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
   // Reactive DB queries
   const config = useLiveQuery(() => db.configuracion.toArray())?.[0];
-  const historial = useLiveQuery(() =>
-    db.entregas.where('cliente_id').equals(id).reverse().limit(5).toArray()
-    , [id]) ?? [];
+  const historial = useLiveQuery(async () => {
+    const entregas = await db.entregas.where('cliente_id').equals(id).toArray();
+    return entregas.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()).slice(0, 5);
+  }, [id]) ?? [];
 
   const precios = { p12: config?.precio_12l || 0, p20: config?.precio_20l || 0 };
   const totalEnMano = (envases_12l || 0) + (envases_20l || 0);
