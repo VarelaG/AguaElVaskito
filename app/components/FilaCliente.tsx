@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useState } from 'react';
+import { db } from '../lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 
 interface FilaProps {
@@ -18,26 +19,16 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   const [cant12, setCant12] = useState(0);
   const [cant20, setCant20] = useState(0);
   const [vacios, setVacios] = useState(0);
-  const [precios, setPrecios] = useState({ p12: 0, p20: 0 });
   const [verHistorial, setVerHistorial] = useState(false);
-  const [historial, setHistorial] = useState<any[]>([]);
 
+  // Reactive DB queries
+  const config = useLiveQuery(() => db.configuracion.toArray())?.[0];
+  const historial = useLiveQuery(() =>
+    db.entregas.where('cliente_id').equals(id).reverse().limit(5).toArray()
+    , [id]) ?? [];
+
+  const precios = { p12: config?.precio_12l || 0, p20: config?.precio_20l || 0 };
   const totalEnMano = (envases_12l || 0) + (envases_20l || 0);
-
-  const cargarDatos = async () => {
-    const { data: pData } = await supabase.from('configuracion').select('*').single();
-    if (pData) setPrecios({ p12: pData.precio_12l, p20: pData.precio_20l });
-
-    const { data: hData } = await supabase
-      .from('entregas')
-      .select('*')
-      .eq('cliente_id', id)
-      .order('fecha', { ascending: false })
-      .limit(5);
-    if (hData) setHistorial(hData);
-  };
-
-  useEffect(() => { cargarDatos(); }, [id]);
 
   const deshacerEntrega = async (movimiento: any) => {
     if (!confirm("¿Querés borrar este movimiento y revertir los saldos?")) return;
@@ -46,34 +37,52 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
     let rDeuda20 = deuda20;
     let rEnvases20 = envases_20l;
 
-    // 1. Revertir Deuda de Unidades
     if (!movimiento.pago_realizado) {
-      // Si fue "DEBE", restamos lo que se sumó a la deuda
       rDeuda12 = Math.max(0, rDeuda12 - movimiento.bidon_12l);
       rDeuda20 = Math.max(0, rDeuda20 - movimiento.bidon_20l);
     } else {
-      // Si fue "PAGÓ" o "COBRÓ_DEUDA", y el monto_deuda es 0, significa que bajó deuda o pagó en el acto
-      // Para simplificar: al borrar una cobranza, la deuda vuelve a aparecer
       if (movimiento.monto_pagado > 0 && (movimiento.bidon_12l > 0 || movimiento.bidon_20l > 0)) {
-        // Si el contador tenía números, asumimos que se usaron para bajar la deuda
         rDeuda12 += movimiento.bidon_12l;
         rDeuda20 += movimiento.bidon_20l;
       }
     }
 
-    // 2. Revertir Stock (Solo si no fue una cobranza pura de deuda vieja)
-    // El stock vuelve a ser: Actual - Entregados + Devueltos
     rEnvases20 = Math.max(0, rEnvases20 - (movimiento.bidon_12l + movimiento.bidon_20l) + (movimiento.devueltos_20l || 0));
 
-    await supabase.from('entregas').delete().eq('id', movimiento.id);
-    await supabase.from('clientes').update({
+    const updatedClient = {
       deuda_total: (rDeuda12 * precios.p12) + (rDeuda20 * precios.p20),
       deuda_12l: rDeuda12,
       deuda_20l: rDeuda20,
       envases_20l: rEnvases20
-    }).eq('id', id);
+    };
 
-    window.location.reload();
+    try {
+      await db.transaction('rw', db.entregas, db.clientes, db.mutation_queue, async () => {
+        // 1. Delete delivery
+        await db.entregas.delete(movimiento.id);
+        await db.mutation_queue.add({
+          table: 'entregas',
+          type: 'DELETE',
+          payload: { id: movimiento.id },
+          status: 'pending',
+          created_at: Date.now(),
+          retries: 0
+        });
+
+        // 2. Update Client
+        await db.clientes.update(id, updatedClient);
+        await db.mutation_queue.add({
+          table: 'clientes',
+          type: 'UPDATE',
+          payload: { id, ...updatedClient },
+          status: 'pending',
+          created_at: Date.now(),
+          retries: 0
+        });
+      });
+    } catch (err) {
+      alert("Error al revertir: " + err);
+    }
   };
 
   const registrarEntrega = async (tipo: 'PAGÓ' | 'DEBE' | 'COBRÓ_DEUDA') => {
@@ -88,20 +97,16 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
     let dineroCobrado = 0;
 
     if (tipo === 'PAGÓ') {
-      // ESCENARIO A: Entrega y paga hoy. Sube stock, la deuda vieja no se toca.
       dineroCobrado = montoHoy;
       nFisicoTotal += (cant12 + cant20) - vacios;
     }
     else if (tipo === 'DEBE') {
-      // ESCENARIO C: Entrega y no paga. Sube stock y sube deuda.
       nDeuda12 += cant12;
       nDeuda20 += cant20;
       dineroCobrado = 0;
       nFisicoTotal += (cant12 + cant20) - vacios;
     }
     else if (tipo === 'COBRÓ_DEUDA') {
-      // ESCENARIO B: No entrega nada (o ya entregó), solo cobra deuda vieja.
-      // Baja deuda, STOCK NO SUBE.
       if (cant12 > deuda12) return alert(`No podés cobrar más de lo que debe (Deuda 12L: ${deuda12})`);
       if (cant20 > deuda20) return alert(`No podés cobrar más de lo que debe (Deuda 20L: ${deuda20})`);
 
@@ -118,24 +123,59 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
     const nDeudaTotalPesos = (nDeuda12 * precios.p12) + (nDeuda20 * precios.p20);
 
-    await supabase.from('entregas').insert([{
+    const newDeliveryId = crypto.randomUUID();
+    const nuevaEntrega = {
+      id: newDeliveryId,
       cliente_id: id,
       bidon_12l: cant12,
       bidon_20l: cant20,
       devueltos_20l: vacios,
       pago_realizado: tipo !== 'DEBE',
       monto_deuda: tipo === 'DEBE' ? montoHoy : 0,
-      monto_pagado: dineroCobrado
-    }]);
+      monto_pagado: dineroCobrado,
+      fecha: new Date().toISOString()
+    };
 
-    await supabase.from('clientes').update({
+    const updatedClient = {
       deuda_total: nDeudaTotalPesos,
       deuda_12l: nDeuda12,
       deuda_20l: nDeuda20,
       envases_20l: nFisicoTotal
-    }).eq('id', id);
+    };
 
-    window.location.reload();
+    try {
+      await db.transaction('rw', db.entregas, db.clientes, db.mutation_queue, async () => {
+        // 1. Insert delivery
+        await db.entregas.add(nuevaEntrega);
+        await db.mutation_queue.add({
+          table: 'entregas',
+          type: 'INSERT',
+          payload: nuevaEntrega,
+          status: 'pending',
+          created_at: Date.now(),
+          retries: 0
+        });
+
+        // 2. Update Client
+        await db.clientes.update(id, updatedClient);
+        await db.mutation_queue.add({
+          table: 'clientes',
+          type: 'UPDATE',
+          payload: { id, ...updatedClient },
+          status: 'pending',
+          created_at: Date.now(),
+          retries: 0
+        });
+      });
+
+      // Reset inputs
+      setCant12(0);
+      setCant20(0);
+      setVacios(0);
+
+    } catch (err) {
+      alert("Error al registrar transacción: " + err);
+    }
   };
 
   return (
@@ -228,8 +268,16 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
             <div key={i} className="flex justify-between text-[10px] font-bold items-center">
               <span className="text-neutral-400 dark:text-neutral-500 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
               <span className="text-neutral-50 flex-1 text-center text-neutral-600 dark:text-neutral-300">
-                Entregó: {h.bidon_12l > 0 ? `${h.bidon_12l} (12L) ` : ''}{h.bidon_20l > 0 ? `${h.bidon_20l} (20L)` : ''}
-                {h.devueltos_20l > 0 ? ` | Volvieron: ${h.devueltos_20l}` : ''}
+                {h.bidon_12l === 0 && h.bidon_20l === 0 && h.devueltos_20l === 0 ? (
+                  "Cobro de Deuda (Sin entrega física)"
+                ) : h.bidon_12l === 0 && h.bidon_20l === 0 ? (
+                  `Solo me dio: ${h.devueltos_20l} vacío${h.devueltos_20l > 1 ? 's' : ''}`
+                ) : (
+                  <>
+                    Le dejé: {h.bidon_12l > 0 ? `${h.bidon_12l} (12L) ` : ''}{h.bidon_20l > 0 ? `${h.bidon_20l} (20L) ` : ''}
+                    {h.devueltos_20l > 0 ? `| Me dio: ${h.devueltos_20l} vacío${h.devueltos_20l > 1 ? 's' : ''}` : ''}
+                  </>
+                )}
               </span>
               <div className="w-24 text-right flex items-center justify-end gap-2">
                 <span className={`text-[10px] ${h.pago_realizado ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>

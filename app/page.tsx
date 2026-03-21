@@ -1,5 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { db } from './lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { supabase } from './lib/supabase';
 import FilaCliente from './components/FilaCliente';
 import {
@@ -12,23 +14,18 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function Home() {
-  const [clientes, setClientes] = useState<any[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [orden, setOrden] = useState<'nombre' | 'deuda' | 'envases'>('nombre');
-  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    const fetchClientes = async () => {
-      setCargando(true);
-      const { data, error } = await supabase
-        .from('clientes')
-        .select('*');
+  // Use Dexie for reactive state
+  const clientes = useLiveQuery(() => db.clientes.toArray(), []) ?? [];
 
-      if (data) setClientes(data);
-      setCargando(false);
-    };
-    fetchClientes();
-  }, []);
+  // Checking count to see if we have ANY data loaded or empty DB?
+  // Actually, useLiveQuery returns undefined initially. 
+  // 'clientes' above becomes [] if undefined. 
+  // We can track loading by checking separate hook without default
+  const clientesRaw = useLiveQuery(() => db.clientes.toArray());
+  const cargando = !clientesRaw;
 
   // Función para cerrar sesión y limpiar cookies
   const handleLogout = async () => {
@@ -117,9 +114,8 @@ export default function Home() {
       {/* Lista de Clientes */}
       <div className="p-4 space-y-3">
         {cargando ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-30">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-            <p className="text-sm font-bold dark:text-white">Cargando libreta...</p>
+          <div className="text-center py-20">
+            <p className="text-neutral-400 font-medium">Cargando...</p>
           </div>
         ) : clientesProcesados.length === 0 ? (
           <div className="text-center py-20">
@@ -131,7 +127,7 @@ export default function Home() {
               key={cliente.id}
               id={cliente.id}
               nombre={cliente.nombre}
-              direccion={cliente.direccion}
+              direccion={cliente.direccion || ''}
               deuda={cliente.deuda_total}
               deuda12={cliente.deuda_12l}
               deuda20={cliente.deuda_20l}

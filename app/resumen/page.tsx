@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { db } from '../lib/db';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckCircleIcon, ClockIcon, CurrencyDollarIcon, BeakerIcon } from '@heroicons/react/24/solid';
 
 interface ActividadReciente {
@@ -12,49 +12,54 @@ interface ActividadReciente {
 }
 
 export default function ResumenPage() {
-  const [totalDeudaCalle, setTotalDeudaCalle] = useState(0);
-  const [totalEnvasesCalle, setTotalEnvasesCalle] = useState(0); // Total físico
-  const [cobradoHoy, setCobradoHoy] = useState(0);
-  const [actividad, setActividad] = useState<ActividadReciente[]>([]);
-  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    const cargarDatos = async () => {
-      setCargando(true);
+  const stats = useLiveQuery(async () => {
+    // 1. Deuda Total y Stock de Envases
+    const clientes = await db.clientes.toArray();
+    const deudaTotal = clientes.reduce((acc, c) => acc + Number(c.deuda_total), 0) || 0;
+    const envasesTotal = clientes.reduce((acc, c) => acc + (c.envases_12l || 0) + (c.envases_20l || 0), 0) || 0;
 
-      // 1. Deuda Total y Stock de Envases
-      const { data: clientesData } = await supabase.from('clientes').select('deuda_total, envases_12l, envases_20l');
-      const deudaTotal = clientesData?.reduce((acc, c) => acc + Number(c.deuda_total), 0) || 0;
-      const envasesTotal = clientesData?.reduce((acc, c) => acc + (c.envases_12l || 0) + (c.envases_20l || 0), 0) || 0;
+    // 2. Cobrado Hoy
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const hoyISO = hoy.toISOString();
+    const entregasHoy = await db.entregas.where('fecha').aboveOrEqual(hoyISO).toArray();
+    const recaudacionDia = entregasHoy.reduce((acc, e) => acc + (Number(e.monto_pagado) || 0), 0) || 0;
 
-      setTotalDeudaCalle(deudaTotal);
-      setTotalEnvasesCalle(envasesTotal);
+    // 3. Actividad reciente con hora
+    const entregasRecientes = await db.entregas.orderBy('fecha').reverse().limit(20).toArray();
 
-      // 2. Cobrado Hoy
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const { data: entregasHoy } = await supabase.from('entregas').select('monto_pagado').gte('fecha', hoy.toISOString());
-      const recaudacionDia = entregasHoy?.reduce((acc, e) => acc + (Number(e.monto_pagado) || 0), 0) || 0;
-      setCobradoHoy(recaudacionDia);
+    const actividadConNombres = await Promise.all(entregasRecientes.map(async (e) => {
+      // Skip if no activity
+      if (e.monto_pagado === 0 && e.monto_deuda === 0) return null;
 
-      // 3. Actividad reciente con hora
-      const { data: entregasData } = await supabase
-        .from('entregas')
-        .select(`monto_deuda, monto_pagado, pago_realizado, fecha, clientes ( nombre )`)
-        .order('fecha', { ascending: false })
-        .limit(20);
+      const c = await db.clientes.get(e.cliente_id);
+      return {
+        ...e,
+        clientes: { nombre: c?.nombre || 'Desconocido' }
+      };
+    }));
 
-      if (entregasData) {
-        const filtradas = entregasData
-          .filter((e: any) => e.monto_pagado > 0 || e.monto_deuda > 0)
-          .slice(0, 5);
-        setActividad(filtradas as any);
-      }
-      setCargando(false);
+    // Filter nulls and limit to 5
+    const actividadFinal = actividadConNombres.filter(Boolean).slice(0, 5);
+
+    return {
+      deudaTotal,
+      envasesTotal,
+      recaudacionDia,
+      actividad: actividadFinal as ActividadReciente[]
     };
-
-    cargarDatos();
   }, []);
+
+  if (!stats) {
+    return (
+      <main className="min-h-screen bg-neutral-50 dark:bg-black p-6 pb-32 flex items-center justify-center">
+        <p className="text-gray-400 font-bold uppercase text-[10px]">Cargando resumen...</p>
+      </main>
+    );
+  }
+
+  const { deudaTotal, envasesTotal, recaudacionDia, actividad } = stats;
 
   return (
     <main className="min-h-screen bg-neutral-50 dark:bg-black p-6 pb-32">
@@ -74,10 +79,10 @@ export default function ResumenPage() {
           </div>
           <p className="text-sm font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Deuda Total Pesos</p>
         </div>
-        <h2 className="text-5xl font-black text-neutral-800 dark:text-white tracking-tighter">${totalDeudaCalle.toLocaleString()}</h2>
+        <h2 className="text-5xl font-black text-neutral-800 dark:text-white tracking-tighter">${deudaTotal.toLocaleString()}</h2>
         <div className="mt-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-3xl border border-emerald-100 dark:border-emerald-800/50 flex justify-between items-center">
           <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">Cobrado Hoy</span>
-          <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">${cobradoHoy.toLocaleString()}</span>
+          <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">${recaudacionDia.toLocaleString()}</span>
         </div>
       </div>
 
@@ -90,7 +95,7 @@ export default function ResumenPage() {
             <p className="text-sm font-bold text-amber-600 dark:text-amber-400">Total acumulado físico</p>
           </div>
         </div>
-        <span className="text-4xl font-black text-amber-600 dark:text-amber-500">{totalEnvasesCalle} <small className="text-xs">u.</small></span>
+        <span className="text-4xl font-black text-amber-600 dark:text-amber-500">{envasesTotal} <small className="text-xs">u.</small></span>
       </div>
 
       {/* Actividad Reciente con Hora */}
