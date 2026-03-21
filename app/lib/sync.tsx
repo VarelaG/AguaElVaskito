@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { db, Mutation } from './db';
 import { supabase } from './supabase';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -26,89 +26,124 @@ export const useSync = () => useContext(SyncContext);
 export function SyncProvider({ children }: { children: React.ReactNode }) {
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
     const [isSyncing, setIsSyncing] = useState(false);
+    const syncLock = useRef(false);
     const [lastSync, setLastSync] = useState<Date | null>(null);
 
     // Monitor mutations to trigger push
     const pendingMutationsCount = useLiveQuery(() => db.mutation_queue.where('status').equals('pending').count());
 
     const syncPush = useCallback(async () => {
-        if (!isOnline || isSyncing) return;
+        if (!isOnline || syncLock.current) return;
+        syncLock.current = true;
         setIsSyncing(true);
 
         try {
-            const pending = await db.mutation_queue.orderBy('created_at').toArray();
+            let hasMore = true;
+            while (hasMore) {
+                const pending = await db.mutation_queue
+                    .where('status')
+                    .equals('pending')
+                    .sortBy('created_at');
 
-            for (const mutation of pending) {
-                try {
-                    // Process mutation based on type
-                    const { table, type, payload } = mutation;
+                if (pending.length === 0) {
+                    hasMore = false;
+                    break;
+                }
 
-                    let error = null;
+                for (const mutation of pending) {
+                    try {
+                        // Process mutation based on type
+                        const { table, type, payload } = mutation;
 
-                    if (type === 'INSERT') {
-                        // Remove 'id' if it's a number (Dexie auto-inc) to let Supabase gen UUID if needed,
-                        // BUT we are using UUIDs for clients/entregas. 
-                        // If the payload has a UUID generated locally, we send it.
-                        const { error: e } = await supabase.from(table).insert(payload);
-                        error = e;
-                    } else if (type === 'UPDATE') {
-                        // Expect payload to have key info or we need ID. 
-                        // Defines payload as the changes. We need the ID.
-                        // Assumption: payload contains 'id' and the changes.
-                        const { id, ...changes } = payload;
-                        if (!id) throw new Error("No ID in update payload");
-                        const { error: e } = await supabase.from(table).update(changes).eq('id', id);
-                        error = e;
-                    } else if (type === 'DELETE') {
-                        const { id } = payload;
-                        const { error: e } = await supabase.from(table).delete().eq('id', id);
-                        error = e;
+                        // Mark as processing temporarily in memory
+                        await db.mutation_queue.update(mutation.id!, { status: 'processing' });
+
+                        let error = null;
+
+                        if (type === 'INSERT') {
+                            const { error: e } = await supabase.from(table).insert(payload);
+                            error = e;
+                        } else if (type === 'UPDATE') {
+                            const { id, ...changes } = payload;
+                            if (!id) throw new Error("No ID in update payload");
+                            const { error: e } = await supabase.from(table).update(changes).eq('id', id);
+                            error = e;
+                        } else if (type === 'DELETE') {
+                            const { id } = payload;
+                            const { error: e } = await supabase.from(table).delete().eq('id', id);
+                            error = e;
+                        }
+
+                        if (error) {
+                            console.error(`Sync error for mutation ${mutation.id}:`, error);
+                            // Marcar failed pero NO BORRARLA para no perder el dato
+                            await db.mutation_queue.update(mutation.id!, { 
+                                status: 'failed',
+                                error: error.message || 'Error desconocido',
+                                retries: (mutation.retries || 0) + 1
+                            });
+                        } else {
+                            // Success - se subio correctamente.
+                            await db.mutation_queue.delete(mutation.id!);
+                        }
+
+                    } catch (err: any) {
+                        console.error("Mutation processing exception:", err);
+                        await db.mutation_queue.update(mutation.id!, { 
+                            status: 'failed',
+                            error: String(err),
+                            retries: (mutation.retries || 0) + 1
+                        });
                     }
-
-                    if (error) {
-                        console.error(`Sync error for mutation ${mutation.id}:`, error);
-                        // If error is critical, maybe mark as failed? For now, retry or skip.
-                        // If it's a "duplicate key" maybe we ignore?
-                        // We'll leave it in queue but mark as 'failed' to stop blocking? 
-                        // Or remove it? 
-                        // Simple strategy: Remove it to avoid blocking everything forever.
-                        await db.mutation_queue.delete(mutation.id!);
-                    } else {
-                        // Success
-                        await db.mutation_queue.delete(mutation.id!);
-                    }
-
-                } catch (err) {
-                    console.error("Mutation processing exception:", err);
-                    // Mark failed or increment retries
                 }
             }
         } finally {
+            syncLock.current = false;
             setIsSyncing(false);
         }
-    }, [isOnline, isSyncing]);
+    }, [isOnline]);
 
     const syncPull = useCallback(async () => {
-        if (!isOnline || isSyncing) return;
+        if (!isOnline || syncLock.current) return;
+        syncLock.current = true;
         setIsSyncing(true);
+
         try {
+            // PROTECCIÓN: Identificar registros bloqueados por mutaciones locales (pending o failed)
+            const lockedMutations = await db.mutation_queue
+                .filter(m => m.status === 'pending' || m.status === 'failed' || m.status === 'processing')
+                .toArray();
+
+            const lockedClientes = new Set(lockedMutations.filter(m => m.table === 'clientes').map(m => m.payload.id));
+            const lockedEntregas = new Set(lockedMutations.filter(m => m.table === 'entregas').map(m => m.payload.id));
+            const lockedConfiguracion = new Set(lockedMutations.filter(m => m.table === 'configuracion').map(m => m.payload.id));
+
             // 1. Clientes
             const { data: clients, error: errClients } = await supabase.from('clientes').select('*');
             if (clients && !errClients) {
-                await db.clientes.bulkPut(clients); // Upsert
+                // Filtrar clientes que tengan mutaciones locales pendientes (Garantiza optimismo local)
+                const safeClients = clients.filter(c => !lockedClientes.has(c.id));
+                if (safeClients.length > 0) {
+                    await db.clientes.bulkPut(safeClients); // Upsert
+                }
             }
 
             // 2. Entregas (Maybe limit to recent? For now all)
-            // Optimisation: Fetch only recent or by pages. 
             const { data: entregas, error: errEntregas } = await supabase.from('entregas').select('*').limit(1000);
             if (entregas && !errEntregas) {
-                await db.entregas.bulkPut(entregas);
+                const safeEntregas = entregas.filter(e => !lockedEntregas.has(e.id));
+                if (safeEntregas.length > 0) {
+                    await db.entregas.bulkPut(safeEntregas);
+                }
             }
 
             // 3. Config
             const { data: config, error: errConfig } = await supabase.from('configuracion').select('*');
             if (config && !errConfig) {
-                await db.configuracion.bulkPut(config);
+                const safeConfig = config.filter(c => !lockedConfiguracion.has(c.id));
+                if (safeConfig.length > 0) {
+                    await db.configuracion.bulkPut(safeConfig);
+                }
             }
 
             setLastSync(new Date());
@@ -116,22 +151,23 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             console.error("Pull sync failed", error);
         } finally {
+            syncLock.current = false;
             setIsSyncing(false);
         }
-    }, [isOnline, isSyncing]);
+    }, [isOnline]);
 
     // Initial Pull on mount (if online)
     useEffect(() => {
         if (isOnline) {
             syncPull();
         }
-    }, [isOnline]); // Run when coming online
+    }, [isOnline, syncPull]); 
 
     // Trigger Push if pending mutations exist and we go online
     useEffect(() => {
         if (isOnline && (pendingMutationsCount ?? 0) > 0) {
             syncPush().then(() => {
-                // After push, we usually want to pull to get latest state (e.g. UUIDs if we were using temp ones, or other users' edits)
+                // After push, we usually want to pull to get latest state
                 syncPull();
             });
         }
@@ -148,6 +184,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
+
+    // Helper (Optional) - Intentar sincronizar fallos manualmente o periodicamente.
+    // Usar con precaución o un botón extra en la UI.
+    const retryFailed = useCallback(async () => {
+        if(!isOnline) return;
+        const failed = await db.mutation_queue.where('status').equals('failed').toArray();
+        for(let m of failed) {
+            await db.mutation_queue.update(m.id!, { status: 'pending' });
+        }
+        if(failed.length > 0) {
+            syncPush();
+        }
+    }, [isOnline, syncPush]);
 
     return (
         <SyncContext.Provider value={{ isOnline, isSyncing, lastSync, syncPush, syncPull }}>
