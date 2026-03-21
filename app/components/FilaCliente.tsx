@@ -37,17 +37,23 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
     let rDeuda20 = deuda20;
     let rEnvases20 = envases_20l;
 
-    if (!movimiento.pago_realizado) {
+    if (movimiento.monto_deuda > 0) {
+      // DEBE: Quitamos la deuda y físico que le habíamos fiado
       rDeuda12 = Math.max(0, rDeuda12 - movimiento.bidon_12l);
       rDeuda20 = Math.max(0, rDeuda20 - movimiento.bidon_20l);
-    } else {
-      if (movimiento.monto_pagado > 0 && (movimiento.bidon_12l > 0 || movimiento.bidon_20l > 0)) {
-        rDeuda12 += movimiento.bidon_12l;
-        rDeuda20 += movimiento.bidon_20l;
-      }
+      rEnvases20 = Math.max(0, rEnvases20 - (movimiento.bidon_12l + movimiento.bidon_20l) + (movimiento.devueltos_20l || 0));
+    } 
+    else if (movimiento.monto_deuda === 0) {
+      // PAGÓ: La deuda nunca se afectó, así que solo des-entregamos lo físico
+      rEnvases20 = Math.max(0, rEnvases20 - (movimiento.bidon_12l + movimiento.bidon_20l) + (movimiento.devueltos_20l || 0));
     }
-
-    rEnvases20 = Math.max(0, rEnvases20 - (movimiento.bidon_12l + movimiento.bidon_20l) + (movimiento.devueltos_20l || 0));
+    else if (movimiento.monto_deuda < 0) {
+      // COBRÓ DEUDA VIEJA (Ninja Hack: Los bidones están guardados en negativo).
+      // Sumamos valor absoluto para devolverle la deuda al cliente y revertir vacíos
+      rDeuda12 += Math.abs(movimiento.bidon_12l || 0);
+      rDeuda20 += Math.abs(movimiento.bidon_20l || 0);
+      rEnvases20 += (movimiento.devueltos_20l || 0);
+    }
 
     const updatedClient = {
       deuda_total: (rDeuda12 * precios.p12) + (rDeuda20 * precios.p20),
@@ -95,16 +101,23 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
     let nDeuda20 = deuda20 || 0;
     let nFisicoTotal = totalEnMano;
     let dineroCobrado = 0;
+    
+    // Variables Ninja para Hack de Deshacer
+    let b12 = cant12;
+    let b20 = cant20;
+    let md = 0; // monto_deuda
 
     if (tipo === 'PAGÓ') {
       dineroCobrado = montoHoy;
       nFisicoTotal += (cant12 + cant20) - vacios;
+      md = 0;
     }
     else if (tipo === 'DEBE') {
       nDeuda12 += cant12;
       nDeuda20 += cant20;
       dineroCobrado = 0;
       nFisicoTotal += (cant12 + cant20) - vacios;
+      md = montoHoy;
     }
     else if (tipo === 'COBRÓ_DEUDA') {
       if (cant12 > deuda12) return alert(`No podés cobrar más de lo que debe (Deuda 12L: ${deuda12})`);
@@ -112,13 +125,19 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
       if (cant12 === 0 && cant20 === 0) {
         dineroCobrado = deuda;
+        // Hack ninja: Guardamos los bidones borrados como negativos
+        b12 = -nDeuda12;
+        b20 = -nDeuda20;
         nDeuda12 = 0; nDeuda20 = 0;
       } else {
         dineroCobrado = montoHoy;
         nDeuda12 = Math.max(0, nDeuda12 - cant12);
         nDeuda20 = Math.max(0, nDeuda20 - cant20);
+        b12 = -cant12;
+        b20 = -cant20;
       }
       nFisicoTotal -= vacios;
+      md = -1; // Marcador ninja para Cobró Deuda
     }
 
     const nDeudaTotalPesos = (nDeuda12 * precios.p12) + (nDeuda20 * precios.p20);
@@ -127,11 +146,11 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
     const nuevaEntrega = {
       id: newDeliveryId,
       cliente_id: id,
-      bidon_12l: cant12,
-      bidon_20l: cant20,
+      bidon_12l: b12,
+      bidon_20l: b20,
       devueltos_20l: vacios,
       pago_realizado: tipo !== 'DEBE',
-      monto_deuda: tipo === 'DEBE' ? montoHoy : 0,
+      monto_deuda: md,
       monto_pagado: dineroCobrado,
       fecha: new Date().toISOString()
     };
@@ -268,9 +287,9 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
             <div key={i} className="flex justify-between text-[10px] font-bold items-center">
               <span className="text-neutral-400 dark:text-neutral-500 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
               <span className="text-neutral-50 flex-1 text-center text-neutral-600 dark:text-neutral-300">
-                {h.bidon_12l === 0 && h.bidon_20l === 0 && h.devueltos_20l === 0 ? (
+                {h.bidon_12l <= 0 && h.bidon_20l <= 0 && h.devueltos_20l === 0 ? (
                   "Cobro de Deuda (Sin entrega física)"
-                ) : h.bidon_12l === 0 && h.bidon_20l === 0 ? (
+                ) : h.bidon_12l <= 0 && h.bidon_20l <= 0 ? (
                   `Solo me dio: ${h.devueltos_20l} vacío${h.devueltos_20l > 1 ? 's' : ''}`
                 ) : (
                   <>
