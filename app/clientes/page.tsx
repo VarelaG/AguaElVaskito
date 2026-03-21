@@ -101,10 +101,12 @@ export default function ClientesPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const eliminarCliente = async (id: string, nombre: string) => {
+  const eliminarCliente = async (id: string, nombre: string, deudaTotal: number) => {
+    if (deudaTotal > 0) {
+      return alert(`❌ No podés borrar a "${nombre}" porque todavía tiene una deuda activa de $${deudaTotal.toLocaleString()}. Deberías cobrarle o condonarle la deuda primero.`);
+    }
+
     if (confirm(`¿Estás seguro de borrar a "${nombre}"? Esta acción no se puede deshacer.`)) {
-      // Check if has local deliveries? 
-      // For now, allow delete.
       try {
         await db.clientes.delete(id);
         await db.mutation_queue.add({
@@ -212,7 +214,7 @@ export default function ClientesPage() {
               <button onClick={() => prepararEdicion(cliente)} className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
                 <PencilSquareIcon className="h-5 w-5" />
               </button>
-              <button onClick={() => eliminarCliente(cliente.id, cliente.nombre)} className="p-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors">
+              <button onClick={() => eliminarCliente(cliente.id, cliente.nombre, cliente.deuda_total)} className="p-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors">
                 <TrashIcon className="h-5 w-5" />
               </button>
             </div>
