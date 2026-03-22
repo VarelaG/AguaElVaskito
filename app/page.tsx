@@ -27,8 +27,19 @@ export default function Home() {
   const clientesRaw = useLiveQuery(() => db.clientes.toArray());
   const cargando = !clientesRaw;
 
-  // Función para cerrar sesión y limpiar cookies
+  // Función para cerrar sesión: limpia datos locales Y hace signOut
   const handleLogout = async () => {
+    try {
+      // CRITICAL: Clear all local cached data before switching users
+      // Without this, the next user who logs in on the same device sees old data
+      await db.clientes.clear();
+      await db.entregas.clear();
+      await db.configuracion.clear();
+      await db.mutation_queue.clear();
+      localStorage.removeItem('empresa_nombre');
+    } catch (e) {
+      console.warn('Error clearing local DB on logout:', e);
+    }
     await supabase.auth.signOut();
     window.location.href = '/login';
   };
