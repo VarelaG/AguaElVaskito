@@ -148,19 +148,29 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             // so we don't need to manually filter—Supabase will only return
             // data belonging to the logged-in user's company.
 
-            // 1. Clientes
-            const { data: clients, error: errClients } = await supabase.from('clientes').select('*');
-            if (clients && !errClients) {
-                const safeClients = clients.filter(c => !lockedClientes.has(c.id));
+            // 1. Clientes — REPLACE strategy (not accumulate)
+            const { data: clientsFromServer, error: errClients } = await supabase.from('clientes').select('*');
+            if (!errClients) {
+                const safeClients = (clientsFromServer || []).filter(c => !lockedClientes.has(c.id));
+                // Delete local clients that are no longer returned by the server
+                // (handles company isolation: old user data is wiped on next pull)
+                const serverClientIds = safeClients.map(c => c.id);
+                await db.clientes
+                    .filter(c => !lockedClientes.has(c.id) && !serverClientIds.includes(c.id))
+                    .delete();
                 if (safeClients.length > 0) {
                     await db.clientes.bulkPut(safeClients);
                 }
             }
 
-            // 2. Entregas
-            const { data: entregas, error: errEntregas } = await supabase.from('entregas').select('*').limit(1000);
-            if (entregas && !errEntregas) {
-                const safeEntregas = entregas.filter(e => !lockedEntregas.has(e.id));
+            // 2. Entregas — REPLACE strategy
+            const { data: entregasFromServer, error: errEntregas } = await supabase.from('entregas').select('*').limit(1000);
+            if (!errEntregas) {
+                const safeEntregas = (entregasFromServer || []).filter(e => !lockedEntregas.has(e.id));
+                const serverEntregaIds = safeEntregas.map(e => e.id);
+                await db.entregas
+                    .filter(e => !lockedEntregas.has(e.id) && !serverEntregaIds.includes(e.id))
+                    .delete();
                 if (safeEntregas.length > 0) {
                     await db.entregas.bulkPut(safeEntregas);
                 }
