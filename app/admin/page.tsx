@@ -39,9 +39,19 @@ export default function AdminPage() {
   };
 
   const loadEmpresas = async () => {
-    // Use service role via API route for listing all companies
-    const { data } = await supabase.from('empresas').select('*').order('created_at', { ascending: false });
-    if (data) setEmpresas(data);
+    try {
+      // Get the session token to authenticate the API call
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch('/api/admin/empresas', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      });
+      const result = await res.json();
+      if (result.empresas) setEmpresas(result.empresas);
+    } catch (err) {
+      console.error('Error cargando empresas:', err);
+    }
   };
 
   const crearEmpresa = async (e: React.FormEvent) => {
