@@ -1,23 +1,30 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { db } from '../lib/db';
 import { Cog8ToothIcon, ArrowLeftIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function ConfigPage() {
+  const [configId, setConfigId] = useState<string | null>(null);
   const [precios, setPrecios] = useState({ precio_12l: 0, precio_20l: 0 });
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     const leerPrecios = async () => {
       const { data } = await supabase.from('configuracion').select('*').single();
-      if (data) setPrecios({ precio_12l: data.precio_12l, precio_20l: data.precio_20l });
+      if (data) {
+        setConfigId(data.id);
+        setPrecios({ precio_12l: data.precio_12l, precio_20l: data.precio_20l });
+      }
     };
     leerPrecios();
   }, []);
 
   const actualizarPrecios = async () => {
+    if (!configId) return alert("❌ Error: No se encontró la configuración.");
+    
     setGuardando(true);
 
     try {
@@ -25,9 +32,16 @@ export default function ConfigPage() {
       const { error: errorConfig } = await supabase
         .from('configuracion')
         .update(precios)
-        .eq('id', 1);
+        .eq('id', configId);
 
       if (errorConfig) throw errorConfig;
+
+      // Actualizar localmente para que la app lea los precios nuevos DE INMEDIATO
+      try {
+        await db.configuracion.update(configId, precios);
+      } catch (e) {
+         console.warn("No se pudo actualizar config db local", e);
+      }
 
       // 2. Traer a todos los clientes que deben bidones
       const { data: clientes, error: errorClientes } = await supabase
@@ -39,18 +53,24 @@ export default function ConfigPage() {
 
       // 3. Recalcular la deuda total de cada uno con los nuevos precios
       if (clientes && clientes.length > 0) {
-        const promesasUpdate = clientes.map(cliente => {
+        const promesasSupa = [];
+        const promesasDexie = [];
+        
+        for (const cliente of clientes) {
           const nuevaDeudaTotal =
             (cliente.deuda_12l * precios.precio_12l) +
             (cliente.deuda_20l * precios.precio_20l);
 
-          return supabase
-            .from('clientes')
-            .update({ deuda_total: nuevaDeudaTotal })
-            .eq('id', cliente.id);
-        });
+          promesasSupa.push(
+            supabase.from('clientes').update({ deuda_total: nuevaDeudaTotal }).eq('id', cliente.id)
+          );
+          
+          promesasDexie.push(
+            db.clientes.update(cliente.id, { deuda_total: nuevaDeudaTotal })
+          );
+        }
 
-        await Promise.all(promesasUpdate);
+        await Promise.all([...promesasSupa, ...promesasDexie]);
       }
 
       alert("✅ Precios actualizados y deudas de clientes recalculadas.");
