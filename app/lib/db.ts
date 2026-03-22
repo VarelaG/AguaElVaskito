@@ -10,6 +10,7 @@ export interface Cliente {
     deuda_20l: number;
     envases_12l: number;
     envases_20l: number;
+    empresa_id?: string;
     updated_at?: string;
     // Local flags
     sync_status?: 'synced' | 'pending';
@@ -25,13 +26,15 @@ export interface Entrega {
     monto_deuda: number;
     monto_pagado: number;
     fecha: string; // ISO string
+    empresa_id?: string;
     sync_status?: 'synced' | 'pending';
 }
 
 export interface Configuracion {
-    id: string; // usually just 1 or similar
+    id: string;
     precio_12l: number;
     precio_20l: number;
+    empresa_id?: string;
 }
 
 export interface Mutation {
@@ -54,9 +57,15 @@ export class VaskitoDB extends Dexie {
     constructor() {
         super('VaskitoDB');
         this.version(1).stores({
-            clientes: 'id, nombre, sync_status', // Indexed fields
+            clientes: 'id, nombre, sync_status',
             entregas: 'id, cliente_id, fecha, sync_status',
             configuracion: 'id',
+            mutation_queue: '++id, table, status'
+        });
+        this.version(2).stores({
+            clientes: 'id, nombre, empresa_id, sync_status',
+            entregas: 'id, cliente_id, fecha, empresa_id, sync_status',
+            configuracion: 'id, empresa_id',
             mutation_queue: '++id, table, status'
         });
     }

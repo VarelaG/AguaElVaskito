@@ -9,6 +9,7 @@ interface SyncContextType {
     isOnline: boolean;
     isSyncing: boolean;
     lastSync: Date | null;
+    empresaId: string | null;
     syncPush: () => Promise<void>;
     syncPull: () => Promise<void>;
 }
@@ -17,6 +18,7 @@ const SyncContext = createContext<SyncContextType>({
     isOnline: true,
     isSyncing: false,
     lastSync: null,
+    empresaId: null,
     syncPush: async () => { },
     syncPull: async () => { },
 });
@@ -26,16 +28,40 @@ export const useSync = () => useContext(SyncContext);
 export function SyncProvider({ children }: { children: React.ReactNode }) {
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [empresaId, setEmpresaId] = useState<string | null>(null);
     const syncLock = useRef(false);
     const [lastSync, setLastSync] = useState<Date | null>(null);
 
     // Monitor mutations to trigger push
     const pendingMutationsCount = useLiveQuery(() => db.mutation_queue.where('status').equals('pending').count());
 
+    // Get empresa_id of the currently logged in user
+    const getEmpresaId = useCallback(async (): Promise<string | null> => {
+        if (empresaId) return empresaId;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return null;
+
+            const { data, error } = await supabase
+                .from('usuarios_empresa')
+                .select('empresa_id')
+                .eq('user_id', user.id)
+                .single();
+
+            if (error || !data) return null;
+            setEmpresaId(data.empresa_id);
+            return data.empresa_id;
+        } catch {
+            return null;
+        }
+    }, [empresaId]);
+
     const syncPush = useCallback(async () => {
         if (!isOnline || syncLock.current) return;
         syncLock.current = true;
         setIsSyncing(true);
+
+        const eid = await getEmpresaId();
 
         try {
             let hasMore = true;
@@ -52,19 +78,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
                 for (const mutation of pending) {
                     try {
-                        // Process mutation based on type
                         const { table, type, payload } = mutation;
 
-                        // Mark as processing temporarily in memory
                         await db.mutation_queue.update(mutation.id!, { status: 'processing' });
 
                         let error = null;
 
+                        // Inject empresa_id into all INSERT payloads
+                        const enrichedPayload = (type === 'INSERT' && eid)
+                            ? { ...payload, empresa_id: eid }
+                            : payload;
+
                         if (type === 'INSERT') {
-                            const { error: e } = await supabase.from(table).insert(payload);
+                            const { error: e } = await supabase.from(table).insert(enrichedPayload);
                             error = e;
                         } else if (type === 'UPDATE') {
-                            const { id, ...changes } = payload;
+                            const { id, ...changes } = enrichedPayload;
                             if (!id) throw new Error("No ID in update payload");
                             const { error: e } = await supabase.from(table).update(changes).eq('id', id);
                             error = e;
@@ -76,20 +105,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
                         if (error) {
                             console.error(`Sync error for mutation ${mutation.id}:`, error);
-                            // Marcar failed pero NO BORRARLA para no perder el dato
-                            await db.mutation_queue.update(mutation.id!, { 
+                            await db.mutation_queue.update(mutation.id!, {
                                 status: 'failed',
                                 error: error.message || 'Error desconocido',
                                 retries: (mutation.retries || 0) + 1
                             });
                         } else {
-                            // Success - se subio correctamente.
                             await db.mutation_queue.delete(mutation.id!);
                         }
 
                     } catch (err: any) {
                         console.error("Mutation processing exception:", err);
-                        await db.mutation_queue.update(mutation.id!, { 
+                        await db.mutation_queue.update(mutation.id!, {
                             status: 'failed',
                             error: String(err),
                             retries: (mutation.retries || 0) + 1
@@ -101,7 +128,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             syncLock.current = false;
             setIsSyncing(false);
         }
-    }, [isOnline]);
+    }, [isOnline, getEmpresaId]);
 
     const syncPull = useCallback(async () => {
         if (!isOnline || syncLock.current) return;
@@ -109,26 +136,28 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setIsSyncing(true);
 
         try {
-            // PROTECCIÓN: Identificar registros bloqueados por mutaciones locales (pending o failed)
+            // PROTECCIÓN: Identificar registros bloqueados por mutaciones locales
             const lockedMutations = await db.mutation_queue
                 .filter(m => m.status === 'pending' || m.status === 'failed' || m.status === 'processing')
                 .toArray();
 
             const lockedClientes = new Set(lockedMutations.filter(m => m.table === 'clientes').map(m => m.payload.id));
             const lockedEntregas = new Set(lockedMutations.filter(m => m.table === 'entregas').map(m => m.payload.id));
-            const lockedConfiguracion = new Set(lockedMutations.filter(m => m.table === 'configuracion').map(m => m.payload.id));
+
+            // Supabase RLS automatically filters by empresa_id via the policy,
+            // so we don't need to manually filter—Supabase will only return
+            // data belonging to the logged-in user's company.
 
             // 1. Clientes
             const { data: clients, error: errClients } = await supabase.from('clientes').select('*');
             if (clients && !errClients) {
-                // Filtrar clientes que tengan mutaciones locales pendientes (Garantiza optimismo local)
                 const safeClients = clients.filter(c => !lockedClientes.has(c.id));
                 if (safeClients.length > 0) {
-                    await db.clientes.bulkPut(safeClients); // Upsert
+                    await db.clientes.bulkPut(safeClients);
                 }
             }
 
-            // 2. Entregas (Maybe limit to recent? For now all)
+            // 2. Entregas
             const { data: entregas, error: errEntregas } = await supabase.from('entregas').select('*').limit(1000);
             if (entregas && !errEntregas) {
                 const safeEntregas = entregas.filter(e => !lockedEntregas.has(e.id));
@@ -139,10 +168,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
             // 3. Config
             const { data: config, error: errConfig } = await supabase.from('configuracion').select('*');
-            if (config && !errConfig) {
-                const safeConfig = config.filter(c => !lockedConfiguracion.has(c.id));
-                if (safeConfig.length > 0) {
-                    await db.configuracion.bulkPut(safeConfig);
+            if (config && !errConfig && config.length > 0) {
+                await db.configuracion.bulkPut(config);
+            }
+
+            // 4. Empresa info (for display name)
+            const eid = await getEmpresaId();
+            if (eid) {
+                const { data: empresa } = await supabase
+                    .from('empresas')
+                    .select('nombre')
+                    .eq('id', eid)
+                    .single();
+                if (empresa) {
+                    localStorage.setItem('empresa_nombre', empresa.nombre);
                 }
             }
 
@@ -154,20 +193,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             syncLock.current = false;
             setIsSyncing(false);
         }
-    }, [isOnline]);
+    }, [isOnline, getEmpresaId]);
 
     // Initial Pull on mount (if online)
     useEffect(() => {
         if (isOnline) {
             syncPull();
         }
-    }, [isOnline, syncPull]); 
+    }, [isOnline, syncPull]);
 
     // Trigger Push if pending mutations exist and we go online
     useEffect(() => {
         if (isOnline && (pendingMutationsCount ?? 0) > 0) {
             syncPush().then(() => {
-                // After push, we usually want to pull to get latest state
                 syncPull();
             });
         }
@@ -185,21 +223,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
-    // Helper (Optional) - Intentar sincronizar fallos manualmente o periodicamente.
-    // Usar con precaución o un botón extra en la UI.
-    const retryFailed = useCallback(async () => {
-        if(!isOnline) return;
-        const failed = await db.mutation_queue.where('status').equals('failed').toArray();
-        for(let m of failed) {
-            await db.mutation_queue.update(m.id!, { status: 'pending' });
-        }
-        if(failed.length > 0) {
-            syncPush();
-        }
-    }, [isOnline, syncPush]);
-
     return (
-        <SyncContext.Provider value={{ isOnline, isSyncing, lastSync, syncPush, syncPull }}>
+        <SyncContext.Provider value={{ isOnline, isSyncing, lastSync, empresaId, syncPush, syncPull }}>
             {children}
         </SyncContext.Provider>
     );

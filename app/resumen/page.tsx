@@ -1,6 +1,7 @@
 'use client';
 import { db } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect, useState } from 'react';
 import { CheckCircleIcon, ClockIcon, CurrencyDollarIcon, BeakerIcon } from '@heroicons/react/24/solid';
 
 interface ActividadReciente {
@@ -12,6 +13,11 @@ interface ActividadReciente {
 }
 
 export default function ResumenPage() {
+  const [empresaNombre, setEmpresaNombre] = useState('');
+
+  useEffect(() => {
+    setEmpresaNombre(localStorage.getItem('empresa_nombre') || 'Mi Empresa');
+  }, []);
 
   const stats = useLiveQuery(async () => {
     // 1. Deuda Total y Stock de Envases
@@ -65,7 +71,7 @@ export default function ResumenPage() {
     <main className="min-h-screen bg-neutral-50 dark:bg-black p-6 pb-32">
       <header className="mb-8 mt-4 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-black text-neutral-800 dark:text-neutral-100 tracking-tight">¡Hola, Vasko!</h1>
+          <h1 className="text-2xl font-black text-neutral-800 dark:text-neutral-100 tracking-tight">{empresaNombre}</h1>
           <p className="text-neutral-500 dark:text-neutral-400 text-sm mt-1 font-medium">Control de activos y caja.</p>
         </div>
         <div className="h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-black shadow-lg">V</div>
