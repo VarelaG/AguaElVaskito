@@ -26,9 +26,9 @@ export default function ConfigPage() {
       let configId = configActual && configActual.length > 0 ? configActual[0].id : null;
       let isNew = false;
       
-      // Si no existe configuración, creamos una con UUID nuevo
+      // Si no existe configuración, creamos una con ID numérico en formato string
       if (!configId) {
-        configId = crypto.randomUUID();
+        configId = String(Math.floor(Math.random() * 1000000) + 10000);
         isNew = true;
       }
 

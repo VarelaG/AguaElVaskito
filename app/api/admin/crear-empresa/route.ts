@@ -60,8 +60,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Create default config for the new company
+    // Dejamos que Supabase auto-incremente el ID numérico
     await supabaseAdmin.from('configuracion').insert({
-      id: crypto.randomUUID(),
       empresa_id: empresaId,
       precio_12l: 0,
       precio_20l: 0,

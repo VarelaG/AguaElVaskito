@@ -176,10 +176,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
                 }
             }
 
-            // 3. Config
-            const { data: config, error: errConfig } = await supabase.from('configuracion').select('*');
-            if (config && !errConfig && config.length > 0) {
-                await db.configuracion.bulkPut(config);
+            // 3. Config — REPLACE strategy
+            const { data: configFromServer, error: errConfig } = await supabase.from('configuracion').select('*');
+            if (!errConfig) {
+                const safeConfig = (configFromServer || []).filter(c => !lockedMutations.some(m => m.table === 'configuracion' && m.payload.id === c.id));
+                const serverConfigIds = safeConfig.map(c => c.id);
+                // Wipe local configs that aren't pending and aren't on the server (handles tenant switching)
+                await db.configuracion
+                    .filter(c => !lockedMutations.some(m => m.table === 'configuracion' && m.payload.id === c.id) && !serverConfigIds.includes(c.id))
+                    .delete();
+                if (safeConfig.length > 0) {
+                    await db.configuracion.bulkPut(safeConfig);
+                }
             }
 
             // 4. Empresa info (for display name)
