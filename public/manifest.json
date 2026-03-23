@@ -1,7 +1,7 @@
 {
-  "name": "El Vaskito - Reparto",
-  "short_name": "Vaskito",
-  "description": "Sistema de gestión de reparto de bidones",
+  "name": "Vyte - Plataforma de Gestión",
+  "short_name": "Vyte",
+  "description": "Sistema SaaS para gestión de negocios",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -59,7 +59,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Image
               src="/icon-512.png"
-              alt="Logo El Vaskito"
+              alt="Logo Vyte"
               width={96} 
               height={96}
               className="rounded-[5rem] shadow-xl shadow-blue-100"
@@ -67,7 +67,7 @@ export default function LoginPage() {
             />
           </div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-            EL VASKITO <span className="text-blue-600 italic">AUTH</span>
+            VYTE <span className="text-blue-600 italic">SaaS</span>
           </h1>
           <p className="text-gray-400 text-sm font-medium">Gestión de Reparto y Clientes</p>
         </div>
@@ -78,7 +78,7 @@ export default function LoginPage() {
             <input 
               type="email" 
               required
-              placeholder="admin@vaskito.com" 
+              placeholder="admin@vyte.com" 
               className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-gray-700"
               onChange={(e) => setEmail(e.target.value)}
             />

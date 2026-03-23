@@ -3,13 +3,13 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata = {
-  title: 'El Vaskito',
+  title: 'Vyte',
   description: 'Gestión de Reparto',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'El Vaskito',
+    title: 'Vyte',
   },
 };
 
