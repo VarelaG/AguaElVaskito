@@ -30,6 +30,18 @@ export default function Home() {
   // Función para cerrar sesión: limpia datos locales Y hace signOut
   const handleLogout = async () => {
     try {
+      // 1. Check if there are unsynced changes!
+      const pendingCount = await db.mutation_queue
+        .filter(m => m.status === 'pending' || m.status === 'processing')
+        .count();
+
+      if (pendingCount > 0) {
+        const confirmar = window.confirm(
+          `¡Alto ahí! Tenés ${pendingCount} cambio/s sin guardar en la nube (ej: borraste un cliente recién).\n\nSi cerrás sesión ahora, esos cambios se cancelan y se pierden.\n\n¿Querés cancelar el cierre de sesión y esperar unos segundos a que se sincronicen?`
+        );
+        if (confirmar) return; // User chose to wait for sync
+      }
+
       // CRITICAL: Clear all local cached data before switching users
       // Without this, the next user who logs in on the same device sees old data
       await db.clientes.clear();

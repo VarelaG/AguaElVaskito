@@ -108,6 +108,16 @@ export default function ClientesPage() {
 
     if (confirm(`¿Estás seguro de borrar a "${nombre}"? Esta acción no se puede deshacer.`)) {
       try {
+        // Enforce cascading delete locally and queue it for Supabase to avoid foreign key errors
+        // Si el cliente tiene entregas en el historial y borramos solo el cliente, Supabase falla
+        const historial = await db.entregas.where('cliente_id').equals(id).toArray();
+        for (const entrega of historial) {
+           await db.entregas.delete(entrega.id);
+           await db.mutation_queue.add({
+             table: 'entregas', type: 'DELETE', payload: { id: entrega.id }, status: 'pending', created_at: Date.now(), retries: 0
+           });
+        }
+
         await db.clientes.delete(id);
         await db.mutation_queue.add({
           table: 'clientes',
@@ -117,6 +127,7 @@ export default function ClientesPage() {
           created_at: Date.now(),
           retries: 0
         });
+        
       } catch (err) {
         alert("Error al eliminar: " + err);
       }
