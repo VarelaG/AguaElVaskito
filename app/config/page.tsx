@@ -1,81 +1,79 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { db } from '../lib/db';
 import { Cog8ToothIcon, ArrowLeftIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import ThemeToggle from '../components/ThemeToggle';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 export default function ConfigPage() {
-  const [configId, setConfigId] = useState<string | null>(null);
+  const configActual = useLiveQuery(() => db.configuracion.toArray());
   const [precios, setPrecios] = useState({ precio_12l: 0, precio_20l: 0 });
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    const leerPrecios = async () => {
-      const { data } = await supabase.from('configuracion').select('*').single();
-      if (data) {
-        setConfigId(data.id);
-        setPrecios({ precio_12l: data.precio_12l, precio_20l: data.precio_20l });
-      }
-    };
-    leerPrecios();
-  }, []);
+    if (configActual && configActual.length > 0) {
+      setPrecios({ 
+        precio_12l: configActual[0].precio_12l || 0, 
+        precio_20l: configActual[0].precio_20l || 0 
+      });
+    }
+  }, [configActual]);
 
   const actualizarPrecios = async () => {
-    if (!configId) return alert("❌ Error: No se encontró la configuración.");
-    
     setGuardando(true);
-
     try {
-      // 1. Actualizar los precios en la tabla de configuración
-      const { error: errorConfig } = await supabase
-        .from('configuracion')
-        .update(precios)
-        .eq('id', configId);
+      let configId = configActual && configActual.length > 0 ? configActual[0].id : null;
+      let isNew = false;
+      
+      // Si no existe configuración, creamos una con UUID nuevo
+      if (!configId) {
+        configId = crypto.randomUUID();
+        isNew = true;
+      }
 
-      if (errorConfig) throw errorConfig;
+      const nuevaConfig = { id: configId, ...precios };
 
-      // Actualizar localmente para que la app lea los precios nuevos DE INMEDIATO
-      try {
+      // 1. Guardar o actualizar en local
+      if (isNew) {
+        await db.configuracion.add(nuevaConfig);
+      } else {
         await db.configuracion.update(configId, precios);
-      } catch (e) {
-         console.warn("No se pudo actualizar config db local", e);
       }
 
-      // 2. Traer a todos los clientes que deben bidones
-      const { data: clientes, error: errorClientes } = await supabase
-        .from('clientes')
-        .select('id, deuda_12l, deuda_20l')
-        .or('deuda_12l.gt.0,deuda_20l.gt.0'); // Solo los que deben algo
+      // 2. Enviar a la cola para sincronizar (el sync inyectará el empresa_id en los INSERTs)
+      await db.mutation_queue.add({
+        table: 'configuracion',
+        type: isNew ? 'INSERT' : 'UPDATE',
+        payload: nuevaConfig,
+        status: 'pending',
+        created_at: Date.now(),
+        retries: 0
+      });
 
-      if (errorClientes) throw errorClientes;
-
-      // 3. Recalcular la deuda total de cada uno con los nuevos precios
-      if (clientes && clientes.length > 0) {
-        const promesasSupa = [];
-        const promesasDexie = [];
+      // 3. Traer todos los clientes locales que deban plata para recalcular su deuda
+      const clientes = await db.clientes.filter(c => c.deuda_12l > 0 || c.deuda_20l > 0).toArray();
+      
+      for (const cliente of clientes) {
+        const nuevaDeudaTotal = (cliente.deuda_12l * precios.precio_12l) + (cliente.deuda_20l * precios.precio_20l);
         
-        for (const cliente of clientes) {
-          const nuevaDeudaTotal =
-            (cliente.deuda_12l * precios.precio_12l) +
-            (cliente.deuda_20l * precios.precio_20l);
-
-          promesasSupa.push(
-            supabase.from('clientes').update({ deuda_total: nuevaDeudaTotal }).eq('id', cliente.id)
-          );
-          
-          promesasDexie.push(
-            db.clientes.update(cliente.id, { deuda_total: nuevaDeudaTotal })
-          );
-        }
-
-        await Promise.all([...promesasSupa, ...promesasDexie]);
+        // Actualizar local
+        await db.clientes.update(cliente.id, { deuda_total: nuevaDeudaTotal });
+        
+        // Enviar repetición a la cola
+        await db.mutation_queue.add({
+          table: 'clientes',
+          type: 'UPDATE',
+          payload: { id: cliente.id, deuda_total: nuevaDeudaTotal },
+          status: 'pending',
+          created_at: Date.now(),
+          retries: 0
+        });
       }
 
-      alert("✅ Precios actualizados y deudas de clientes recalculadas.");
+      alert("✅ Precios actualizados y guardados.");
     } catch (error: any) {
-      alert("❌ Error: " + error.message);
+      alert("❌ Error al guardar en local: " + error.message);
     } finally {
       setGuardando(false);
     }
