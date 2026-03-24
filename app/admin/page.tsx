@@ -10,6 +10,7 @@ interface Empresa {
   id: string;
   nombre: string;
   created_at: string;
+  repartidores?: { email: string, rol: string, user_id: string }[];
 }
 
 export default function AdminPage() {
@@ -188,21 +189,38 @@ export default function AdminPage() {
         </h3>
         <div className="space-y-3">
           {empresas.map(emp => (
-            <div key={emp.id} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-900/50 p-2 rounded-xl">
-                  <UserCircleIcon className="h-5 w-5 text-blue-400" />
+            <div key={emp.id} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-900/50 p-2 rounded-xl">
+                    <UserCircleIcon className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="font-black text-sm text-white">{emp.nombre}</p>
+                    <p className="text-[10px] text-neutral-500 font-medium">
+                      Alta: {new Date(emp.created_at).toLocaleDateString('es-AR')}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-black text-sm text-white">{emp.nombre}</p>
-                  <p className="text-[10px] text-neutral-500 font-medium">
-                    Alta: {new Date(emp.created_at).toLocaleDateString('es-AR')}
-                  </p>
-                </div>
+                <button onClick={() => setSelectedEmpresa(emp.id)} className="text-[10px] font-black uppercase tracking-widest bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 px-3 py-2 rounded-xl border border-blue-900/50 transition">
+                  + Repartidor
+                </button>
               </div>
-              <button onClick={() => setSelectedEmpresa(emp.id)} className="text-xs font-black bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 px-4 py-2 rounded-xl border border-blue-900/50 transition">
-                + Repartidor
-              </button>
+
+              {/* Lista de repartidores vinculados */}
+              {emp.repartidores && emp.repartidores.length > 0 && (
+                <div className="bg-neutral-950/50 p-4 rounded-xl border border-neutral-800/50 space-y-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-2">Cuentas vinculadas</p>
+                  {emp.repartidores.map(rep => (
+                    <div key={rep.user_id} className="flex items-center gap-2 text-xs">
+                      <span className="text-white font-medium">{rep.email}</span>
+                      <span className="text-[9px] bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded-md uppercase font-bold tracking-wider">
+                        {rep.rol}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
