@@ -270,7 +270,7 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
             onClick={() => registrarEntrega('COBRÓ_DEUDA')}
             className="w-full py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 font-black rounded-xl text-[8px] uppercase border border-blue-100 dark:border-blue-800 active:bg-blue-100 dark:active:bg-blue-800"
           >
-            Cobrar Deuda Vieja
+            COBRAR DEUDA
           </button>
         )}
       </div>
