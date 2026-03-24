@@ -24,6 +24,10 @@ export default function AdminPage() {
   const [emailUsuario, setEmailUsuario] = useState('');
   const [passwordUsuario, setPasswordUsuario] = useState('');
 
+  const [selectedEmpresa, setSelectedEmpresa] = useState<string | null>(null);
+  const [empEmail, setEmpEmail] = useState('');
+  const [empPass, setEmpPass] = useState('');
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -40,7 +44,6 @@ export default function AdminPage() {
 
   const loadEmpresas = async () => {
     try {
-      // Get the session token to authenticate the API call
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -54,6 +57,35 @@ export default function AdminPage() {
     }
   };
 
+  const agregarEmpleado = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmpresa) return;
+    setLoading(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/admin/crear-empleado', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ empresa_id: selectedEmpresa, email: empEmail, password: empPass })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      
+      alert('Repartidor creado con éxito para esta empresa!');
+      setSelectedEmpresa(null);
+      setEmpEmail('');
+      setEmpPass('');
+    } catch(err: any) {
+       alert('❌ ' + err.message);
+    } finally {
+       setLoading(false);
+    }
+  };
+
   const crearEmpresa = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -61,7 +93,6 @@ export default function AdminPage() {
     setSuccess('');
 
     try {
-      // 1. Call our API route (which uses service role key) to create the user + company
       const res = await fetch('/api/admin/crear-empresa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,46 +161,21 @@ export default function AdminPage() {
         <form onSubmit={crearEmpresa} className="space-y-4">
           <div>
             <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Nombre de la Empresa</label>
-            <input
-              required
-              value={nombreEmpresa}
-              onChange={e => setNombreEmpresa(e.target.value)}
-              placeholder="Ej: Agua Pura San Martín"
-              className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-neutral-600 font-bold"
-            />
+            <input required value={nombreEmpresa} onChange={e => setNombreEmpresa(e.target.value)} placeholder="Ej: Agua Pura San Martín" className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-neutral-600 font-bold" />
           </div>
           <div>
-            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Email del Repartidor</label>
-            <input
-              required
-              type="email"
-              value={emailUsuario}
-              onChange={e => setEmailUsuario(e.target.value)}
-              placeholder="repartidor@empresa.com"
-              className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-neutral-600 font-bold"
-            />
+            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Email del Dueño</label>
+            <input required type="email" value={emailUsuario} onChange={e => setEmailUsuario(e.target.value)} placeholder="dueño@empresa.com" className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-neutral-600 font-bold" />
           </div>
           <div>
             <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Contraseña Inicial</label>
-            <input
-              required
-              type="password"
-              value={passwordUsuario}
-              onChange={e => setPasswordUsuario(e.target.value)}
-              placeholder="Mínimo 8 caracteres"
-              minLength={8}
-              className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-neutral-600 font-bold"
-            />
+            <input required type="password" value={passwordUsuario} onChange={e => setPasswordUsuario(e.target.value)} placeholder="Mínimo 8 caracteres" minLength={8} className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-neutral-600 font-bold" />
           </div>
 
           {error && <p className="text-rose-400 text-sm font-bold bg-rose-900/20 p-3 rounded-2xl">{error}</p>}
           {success && <p className="text-emerald-400 text-sm font-bold bg-emerald-900/20 p-3 rounded-2xl">{success}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2"
-          >
+          <button type="submit" disabled={loading} className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2">
             {loading ? 'Creando...' : <><PlusIcon className="h-4 w-4" /> Crear Empresa y Usuario</>}
           </button>
         </form>
@@ -194,11 +200,37 @@ export default function AdminPage() {
                   </p>
                 </div>
               </div>
-              <CheckCircleIcon className="h-5 w-5 text-emerald-500" />
+              <button onClick={() => setSelectedEmpresa(emp.id)} className="text-xs font-black bg-blue-900/40 hover:bg-blue-800/60 text-blue-400 px-4 py-2 rounded-xl border border-blue-900/50 transition">
+                + Repartidor
+              </button>
             </div>
           ))}
         </div>
       </section>
+
+      {/* Repartidor Modal */}
+      {selectedEmpresa && (
+        <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-50 fade-in">
+          <div className="bg-neutral-900 border border-neutral-800 p-6 rounded-3xl w-full max-w-sm">
+            <h3 className="font-black text-xl text-white mb-2 tracking-tight">Agregar Repartidor</h3>
+            <p className="text-neutral-500 text-xs font-medium mb-6">Esta cuenta se unirá a la empresa y compartirá su base de datos.</p>
+            <form onSubmit={agregarEmpleado} className="space-y-4">
+               <div>
+                  <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Email del nuevo usuario</label>
+                  <input type="email" required placeholder="email@reparto.com" value={empEmail} onChange={e=>setEmpEmail(e.target.value)} className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" />
+               </div>
+               <div>
+                  <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block mb-1">Contraseña</label>
+                  <input type="text" required placeholder="Reparto123" minLength={6} value={empPass} onChange={e=>setEmpPass(e.target.value)} className="w-full bg-neutral-800 text-white p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" />
+               </div>
+               <div className="flex gap-3 mt-4">
+                  <button type="button" onClick={() => setSelectedEmpresa(null)} className="w-full bg-neutral-800 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-700 transition">Cancelar</button>
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 disabled:bg-blue-900 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-500 transition">Guardar</button>
+               </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

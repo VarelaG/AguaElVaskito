@@ -139,20 +139,6 @@ export default function ConfigPage() {
           </button>
         </div>
       </div>
-
-      <div className="mt-6 bg-white dark:bg-neutral-900 rounded-[2.5rem] p-8 shadow-xl shadow-blue-100/30 dark:shadow-none border border-blue-50 dark:border-neutral-800">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-gray-800 dark:text-white">Gestión de Cuentas</h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Sumar repartidores (socios) a tu empresa</p>
-          </div>
-          <Link href="/empleados" className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-2xl hover:bg-blue-100 transition-colors">
-            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-          </Link>
-        </div>
-      </div>
     </main>
   );
 }
