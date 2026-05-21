@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../lib/db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
@@ -20,6 +20,8 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   const [cant20, setCant20] = useState(0);
   const [vacios, setVacios] = useState(0);
   const [verHistorial, setVerHistorial] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [prevTotal, setPrevTotal] = useState(0);
 
   // Reactive DB queries
   const config = useLiveQuery(() => db.configuracion.toArray())?.[0];
@@ -30,6 +32,15 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
 
   const precios = { p12: config?.precio_12l || 0, p20: config?.precio_20l || 0 };
   const totalEnMano = (envases_12l || 0) + (envases_20l || 0);
+
+  // Automatización inteligente de Retiro Vacíos
+  useEffect(() => {
+    const totalEntregados = cant12 + cant20;
+    if (totalEntregados !== prevTotal) {
+      setVacios(totalEntregados);
+      setPrevTotal(totalEntregados);
+    }
+  }, [cant12, cant20]);
 
   const deshacerEntrega = async (movimiento: any) => {
     if (!confirm("¿Querés borrar este movimiento y revertir los saldos?")) return;
@@ -192,6 +203,7 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
       setCant12(0);
       setCant20(0);
       setVacios(0);
+      setIsExpanded(false);
 
     } catch (err) {
       alert("Error al registrar transacción: " + err);
@@ -199,16 +211,54 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
   };
 
   return (
-    <div className="bg-white dark:bg-neutral-900 p-5 rounded-[2.5rem] shadow-sm border border-neutral-100 dark:border-neutral-800 mb-4 flex flex-col sm:grid sm:grid-cols-12 sm:items-center gap-4 overflow-hidden transition-all">
+    <div className="bg-white dark:bg-neutral-900 p-4 sm:p-5 rounded-[2rem] sm:rounded-[2.5rem] shadow-sm border border-neutral-100 dark:border-neutral-800 mb-3 sm:mb-4 flex flex-col sm:grid sm:grid-cols-12 sm:items-center gap-4 overflow-hidden transition-all duration-300">
+      
+      {/* 1. CABECERA (Header) - Siempre visible y interactiva en móvil */}
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)} 
+        className="flex items-center justify-between sm:hidden cursor-pointer select-none"
+      >
+        <div className="flex-1 min-w-0 pr-2">
+          <h3 className="font-black text-neutral-800 dark:text-neutral-100 uppercase text-xs truncate leading-tight">{nombre}</h3>
+          <p className="text-[9px] text-neutral-500 dark:text-neutral-400 truncate mb-1.5">{direccion || 'Sin dirección'}</p>
+          
+          <div className="flex flex-wrap gap-1 items-center">
+            {deuda12 > 0 && <span className="text-[8px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-black border border-rose-100 dark:border-rose-800 uppercase">Debe {deuda12} (12L)</span>}
+            {deuda20 > 0 && <span className="text-[8px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-black border border-rose-100 dark:border-rose-800 uppercase">Debe {deuda20} (20L)</span>}
+            {deuda === 0 && (
+              <span className="text-[8px] bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-black border border-emerald-100 dark:border-emerald-800 uppercase">
+                ✓ Al día
+              </span>
+            )}
+            <span className="text-[8px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-black border border-amber-100 dark:border-amber-800 uppercase">
+              Mano: {totalEnMano}
+            </span>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <span className={`text-base font-black ${deuda > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>
+            ${deuda.toLocaleString()}
+          </span>
+          <svg 
+            className={`w-4 h-4 text-neutral-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
 
-      {/* 1. INFO Y ETIQUETAS */}
-      <div className="sm:col-span-3 text-center sm:text-left">
+      {/* 2. INFO Y ETIQUETAS (Desktop - Siempre visible) */}
+      <div className="hidden sm:block sm:col-span-3 text-left">
         <div onClick={() => setVerHistorial(!verHistorial)} className="cursor-pointer active:opacity-50 group">
           <h3 className="font-black text-neutral-800 dark:text-neutral-100 uppercase text-sm leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">{nombre}</h3>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium truncate mb-2">{direccion || 'Sin dirección'}</p>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 items-center justify-center sm:justify-start">
+        <div className="flex flex-wrap gap-1.5 items-center justify-start">
           {deuda12 > 0 && <span className="text-[9px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-lg font-black border border-rose-100 dark:border-rose-800 uppercase">Debe {deuda12} (12L)</span>}
           {deuda20 > 0 && <span className="text-[9px] bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-lg font-black border border-rose-100 dark:border-rose-800 uppercase">Debe {deuda20} (20L)</span>}
           {deuda === 0 && (
@@ -222,72 +272,74 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
         </div>
       </div>
 
-      {/* 2. SELECTORES DE ENTREGA */}
-      <div className="sm:col-span-4 flex items-center justify-between bg-neutral-50 dark:bg-neutral-800 p-2 sm:p-3 rounded-2xl border border-neutral-100 dark:border-neutral-700 h-14">
-        <div className="flex flex-col items-center flex-1">
-          <span className="text-[7px] sm:text-[8px] font-black text-blue-400 dark:text-blue-300 uppercase mb-0.5">12L</span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">-</button>
-            <span className="text-xs font-black text-neutral-700 dark:text-white w-5 text-center">{cant12}</span>
-            <button onClick={() => setCant12(cant12 + 1)} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">+</button>
+      {/* CUERPO - Controles, Acciones e Historial (Colapsable en móvil, siempre visible en PC) */}
+      <div className={`${isExpanded ? 'flex' : 'hidden'} sm:contents flex-col gap-4 mt-2 sm:mt-0`}>
+        
+        {/* SELECTORES DE ENTREGA */}
+        <div className="sm:col-span-4 flex items-center justify-between bg-neutral-50 dark:bg-neutral-800 p-2 sm:p-3 rounded-2xl border border-neutral-100 dark:border-neutral-700 h-14">
+          <div className="flex flex-col items-center flex-1">
+            <span className="text-[8px] font-black text-blue-400 dark:text-blue-300 uppercase mb-0.5">12L</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCant12(Math.max(0, cant12 - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">-</button>
+              <span className="text-xs font-black text-neutral-700 dark:text-white w-5 text-center">{cant12}</span>
+              <button onClick={() => setCant12(cant12 + 1)} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">+</button>
+            </div>
+          </div>
+          <div className="w-[1px] h-6 bg-neutral-200 dark:bg-neutral-600 mx-1"></div>
+          <div className="flex flex-col items-center flex-1">
+            <span className="text-[8px] font-black text-blue-400 dark:text-blue-300 uppercase mb-0.5">20L</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">-</button>
+              <span className="text-xs font-black text-neutral-700 dark:text-white w-5 text-center">{cant20}</span>
+              <button onClick={() => setCant20(cant20 + 1)} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">+</button>
+            </div>
           </div>
         </div>
-        <div className="w-[1px] h-6 bg-neutral-200 dark:bg-neutral-600 mx-1"></div>
-        <div className="flex flex-col items-center flex-1">
-          <span className="text-[7px] sm:text-[8px] font-black text-blue-400 dark:text-blue-300 uppercase mb-0.5">20L</span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCant20(Math.max(0, cant20 - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">-</button>
-            <span className="text-xs font-black text-neutral-700 dark:text-white w-5 text-center">{cant20}</span>
-            <button onClick={() => setCant20(cant20 + 1)} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-blue-600 dark:text-blue-300 font-bold active:scale-90">+</button>
+
+        {/* SELECTOR DE VACÍOS */}
+        <div className="sm:col-span-2 flex flex-col items-center bg-amber-50/30 dark:bg-amber-900/20 p-2 rounded-2xl border border-amber-100 dark:border-amber-800/50 h-14">
+          <span className="text-[8px] font-black text-amber-500 dark:text-amber-400 uppercase mb-1">Retiro Vacíos</span>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setVacios(Math.max(0, vacios - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-amber-600 dark:text-amber-400 font-bold active:scale-90">-</button>
+            <span className="text-sm font-black text-neutral-700 dark:text-white w-5 text-center">{vacios}</span>
+            <button
+              disabled={vacios >= totalEnMano}
+              onClick={() => setVacios(vacios + 1)}
+              className={`w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-amber-600 dark:text-amber-400 font-bold active:scale-90 ${vacios >= totalEnMano ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              +
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* 3. SELECTOR DE VACÍOS */}
-      <div className="sm:col-span-2 flex flex-col items-center bg-amber-50/30 dark:bg-amber-900/20 p-2 rounded-2xl border border-amber-100 dark:border-amber-800/50 h-14">
-        <span className="text-[8px] font-black text-amber-500 dark:text-amber-400 uppercase mb-1">Retiro Vacíos</span>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setVacios(Math.max(0, vacios - 1))} className="w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-amber-600 dark:text-amber-400 font-bold active:scale-90">-</button>
-          <span className="text-sm font-black text-neutral-700 dark:text-white w-5 text-center">{vacios}</span>
-          <button
-            disabled={vacios >= totalEnMano}
-            onClick={() => setVacios(vacios + 1)}
-            className={`w-7 h-7 bg-white dark:bg-neutral-700 rounded-lg shadow-sm text-amber-600 dark:text-amber-400 font-bold active:scale-90 ${vacios >= totalEnMano ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            +
-          </button>
+        {/* ACCIONES */}
+        <div className="sm:col-span-2 flex flex-col gap-1.5">
+          <div className="flex gap-1.5">
+            <button onClick={() => registrarEntrega('PAGÓ')} className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-[9px] uppercase shadow-md active:scale-95 transition-all">PAGÓ</button>
+            <button onClick={() => registrarEntrega('DEBE')} className="flex-1 py-3 bg-white dark:bg-neutral-800 text-rose-500 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-black rounded-xl text-[9px] uppercase active:scale-95 transition-all">DEBE</button>
+          </div>
+          {(deuda12 > 0 || deuda20 > 0) && (
+            <button
+              onClick={() => registrarEntrega('COBRÓ_DEUDA')}
+              className="w-full py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 font-black rounded-xl text-[8px] uppercase border border-blue-100 dark:border-blue-800 active:bg-blue-100 dark:active:bg-blue-800"
+            >
+              COBRAR DEUDA
+            </button>
+          )}
         </div>
-      </div>
 
-      {/* 4. ACCIONES */}
-      <div className="sm:col-span-2 flex flex-col gap-1.5">
-        <div className="flex gap-1.5">
-          <button onClick={() => registrarEntrega('PAGÓ')} className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-xl text-[9px] uppercase shadow-md active:scale-95 transition-all">PAGÓ</button>
-          <button onClick={() => registrarEntrega('DEBE')} className="flex-1 py-3 bg-white dark:bg-neutral-800 text-rose-500 dark:text-rose-400 border border-rose-200 dark:border-rose-800 font-black rounded-xl text-[9px] uppercase active:scale-95 transition-all">DEBE</button>
+        {/* 5. SALDO PC (Oculto en móvil ya que está en el header) */}
+        <div className="hidden sm:block sm:col-span-1 text-center sm:text-right font-black">
+          <span className={`text-xl sm:text-sm font-black ${deuda > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>${deuda.toLocaleString()}</span>
         </div>
-        {(deuda12 > 0 || deuda20 > 0) && (
-          <button
-            onClick={() => registrarEntrega('COBRÓ_DEUDA')}
-            className="w-full py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 font-black rounded-xl text-[8px] uppercase border border-blue-100 dark:border-blue-800 active:bg-blue-100 dark:active:bg-blue-800"
-          >
-            COBRAR DEUDA
-          </button>
-        )}
-      </div>
 
-      {/* 5. SALDO PC */}
-      <div className="sm:col-span-1 text-center sm:text-right mt-1 sm:mt-0 font-black">
-        <span className={`text-xl sm:text-sm font-black ${deuda > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-500 dark:text-emerald-400'}`}>${deuda.toLocaleString()}</span>
-      </div>
-
-      {/* HISTORIAL DESPLEGABLE */}
-      {verHistorial && (
-        <div className="sm:col-span-12 bg-neutral-50 dark:bg-neutral-800 rounded-2xl p-4 border border-neutral-100 dark:border-neutral-700 space-y-2 mt-[-1rem] animate-in fade-in slide-in-from-top-2 duration-300">
+        {/* HISTORIAL DETALLADO (Integrado en móvil al expandir, alternable en PC) */}
+        <div className={`${isExpanded ? 'block' : 'hidden'} sm:${verHistorial ? 'block' : 'hidden'} col-span-12 bg-neutral-50 dark:bg-neutral-800 rounded-2xl p-3 sm:p-4 border border-neutral-100 dark:border-neutral-700 space-y-2 mt-2 sm:mt-2`}>
           <p className="text-[9px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest text-center border-b border-neutral-200 dark:border-neutral-700 pb-2 mb-2">Últimos 5 movimientos</p>
           {historial.length > 0 ? historial.map((h, i) => (
-            <div key={i} className="flex justify-between text-[10px] font-bold items-center">
-              <span className="text-neutral-400 dark:text-neutral-500 w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
-              <span className="text-neutral-50 flex-1 text-center text-neutral-600 dark:text-neutral-300">
+            <div key={i} className="flex justify-between text-[10px] font-bold items-center gap-2">
+              <span className="text-neutral-400 dark:text-neutral-500 w-12 sm:w-16">{new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}</span>
+              <span className="text-neutral-600 dark:text-neutral-300 flex-1 text-center truncate sm:whitespace-normal">
                 {h.bidon_12l <= 0 && h.bidon_20l <= 0 && h.devueltos_20l === 0 ? (
                   "Cobro de Deuda (Sin entrega física)"
                 ) : h.bidon_12l <= 0 && h.bidon_20l <= 0 ? (
@@ -299,7 +351,7 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
                   </>
                 )}
               </span>
-              <div className="w-24 text-right flex items-center justify-end gap-2">
+              <div className="w-20 sm:w-24 text-right flex items-center justify-end gap-1.5">
                 <span className={`text-[10px] ${h.pago_realizado ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                   ${(h.monto_pagado || h.monto_deuda).toLocaleString()}
                 </span>
@@ -312,7 +364,8 @@ export default function FilaCliente({ id, nombre, direccion, deuda, deuda12, deu
             </div>
           )) : <p className="text-center text-[10px] text-neutral-400">Sin historial registrado</p>}
         </div>
-      )}
+
+      </div>
     </div>
   );
 }
